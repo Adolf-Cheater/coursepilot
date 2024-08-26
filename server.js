@@ -26,6 +26,9 @@ const pool = new Pool({
   database: 'ratemycourse',
   password: 'Woshishabi2004!',
   port: 5432,
+  ssl: {
+    rejectUnauthorized: false
+  }
 });
 
 // Root route for basic health check
