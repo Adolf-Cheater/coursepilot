@@ -10,7 +10,7 @@ app.use(bodyParser.json());
 
 // Configure CORS options to allow requests from specific origins
 const corsOptions = {
-  origin: '*', // For testing; consider restricting to specific origins in production
+  origin: 'http://localhost:3000', // Allow only your frontend origin
   methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
   credentials: true,
   optionsSuccessStatus: 204
@@ -26,9 +26,6 @@ const pool = new Pool({
   database: 'ratemycourse',
   password: 'Woshishabi2004!',
   port: 5432,
-  ssl: {
-    rejectUnauthorized: false
-  }
 });
 
 // Root route for basic health check
@@ -60,6 +57,7 @@ app.post('/api/upload', async (req, res) => {
     }
 
     await client.query('COMMIT');
+    console.log('Data uploaded successfully');
     res.status(200).json({ message: 'Data uploaded successfully' });
   } catch (error) {
     await client.query('ROLLBACK');
@@ -118,7 +116,7 @@ async function processUpload(client, data) {
 }
 
 // Start the server
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 8000;
 app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
 });
