@@ -22,9 +22,9 @@ app.use(cors(corsOptions));
 // Configure PostgreSQL connection
 const pool = new Pool({
   user: 'main',
-  host: 'your-rds-endpoint.amazonaws.com',
-  database: 'ratemycourse',  // Ensure this is set to 'ratemycourse'
-  password: 'your-password',
+  host: 'general-usuage.chkscywoifga.us-east-2.rds.amazonaws.com',
+  database: 'ratemycourse',
+  password: 'Woshishabi2004!',
   port: 5432,
   ssl: {
     rejectUnauthorized: false  // Ensure SSL is properly configured
