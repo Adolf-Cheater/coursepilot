@@ -8,16 +8,7 @@ const app = express();
 // Use body-parser middleware to parse JSON bodies
 app.use(bodyParser.json());
 
-// Configure CORS options to allow requests from specific origins
-const corsOptions = {
-  origin: 'http://localhost:3000', // Allow only your frontend origin
-  methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
-  credentials: true,
-  optionsSuccessStatus: 204
-};
-
-// Enable CORS with the specified options
-app.use(cors(corsOptions));
+app.use(cors());
 
 // Configure PostgreSQL connection
 const pool = new Pool({
