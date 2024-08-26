@@ -208,6 +208,35 @@ app.get('/api/all-data', async (req, res) => {
   }
 });
 
+// Course details endpoint
+app.get('/api/course/:courseCode', async (req, res) => {
+  const { courseCode } = req.params;
+  const client = await pool.connect();
+
+  try {
+    const courseQuery = `
+      SELECT c.course_code, c.course_name, i.first_name, i.last_name, d.department_name, co.class_size, co.response_count, co.process_date
+      FROM courses c
+      JOIN course_offerings co ON c.course_id = co.course_id
+      JOIN instructors i ON co.instructor_id = i.instructor_id
+      JOIN departments d ON i.department_id = d.department_id
+      WHERE c.course_code = $1
+    `;
+    const result = await client.query(courseQuery, [courseCode]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Course not found' });
+    }
+
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Error fetching course details:', error);
+    res.status(500).json({ error: 'An error occurred while fetching course details.' });
+  } finally {
+    client.release();
+  }
+});
+
 // Start the server
 const PORT = process.env.PORT || 8000;
 app.listen(PORT, () => {
