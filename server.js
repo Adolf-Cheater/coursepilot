@@ -41,7 +41,7 @@ app.get('/health', (req, res) => {
   res.status(200).json({ status: 'OK', message: 'Server is running' });
 });
 
-// Data upload endpoint
+// Data upload endpoint (retained from your current implementation)
 app.post('/api/upload', async (req, res) => {
   console.log('Attempting to connect to database:', pool.options.database);
   console.log('Using database host:', pool.options.host);
@@ -76,7 +76,7 @@ app.post('/api/upload', async (req, res) => {
   }
 });
 
-// Function to process individual upload data
+// Function to process individual upload data (retained from your current implementation)
 async function processUpload(client, data) {
   // Insert or get department
   const departmentResult = await client.query(
@@ -123,65 +123,39 @@ async function processUpload(client, data) {
   }
 }
 
-// New retrieval endpoint for searching by course code or professor name
+// New retrieval endpoint for searching courses and professors
 app.get('/api/search', async (req, res) => {
-  const { query, type } = req.query;
+  const { query } = req.query;
   const client = await pool.connect();
 
   try {
-    let searchQuery;
-    let queryParams;
+    const searchPattern = `%${query}%`;
 
-    if (type === 'course') {
-      searchQuery = `
-        SELECT 
-          co.offering_id,
-          c.course_code,
-          co.academic_year,
-          co.course_type,
-          co.section,
-          co.class_size,
-          co.response_count,
-          co.process_date,
-          i.first_name,
-          i.last_name,
-          d.department_name,
-          d.faculty
-        FROM course_offerings co
-        JOIN courses c ON co.course_id = c.course_id
-        JOIN instructors i ON co.instructor_id = i.instructor_id
-        JOIN departments d ON i.department_id = d.department_id
-        WHERE c.course_code = $1
-      `;
-      queryParams = [query];
-    } else if (type === 'professor') {
-      searchQuery = `
-        SELECT 
-          co.offering_id,
-          c.course_code,
-          co.academic_year,
-          co.course_type,
-          co.section,
-          co.class_size,
-          co.response_count,
-          co.process_date,
-          i.first_name,
-          i.last_name,
-          d.department_name,
-          d.faculty
-        FROM course_offerings co
-        JOIN courses c ON co.course_id = c.course_id
-        JOIN instructors i ON co.instructor_id = i.instructor_id
-        JOIN departments d ON i.department_id = d.department_id
-        WHERE i.first_name = $1 AND i.last_name = $2
-      `;
-      queryParams = query.split(' ');
-    } else {
-      return res.status(400).json({ error: 'Invalid search type. Must be either "course" or "professor".' });
-    }
+    // Queries to fetch matching courses and professors
+    const courseQuery = `
+      SELECT course_code, course_name
+      FROM courses
+      WHERE course_code ILIKE $1 OR course_name ILIKE $1
+      LIMIT 10
+    `;
 
-    const result = await client.query(searchQuery, queryParams);
-    res.json(result.rows);
+    const professorQuery = `
+      SELECT first_name, last_name, department_name
+      FROM instructors
+      WHERE first_name ILIKE $1 OR last_name ILIKE $1 OR CONCAT(first_name, ' ', last_name) ILIKE $1
+      LIMIT 10
+    `;
+
+    // Execute the queries in parallel
+    const [courseResult, professorResult] = await Promise.all([
+      client.query(courseQuery, [searchPattern]),
+      client.query(professorQuery, [searchPattern])
+    ]);
+
+    res.json({
+      courses: courseResult.rows,
+      professors: professorResult.rows
+    });
   } catch (error) {
     console.error('Error fetching data:', error);
     res.status(500).json({ error: 'An error occurred while fetching data.' });
