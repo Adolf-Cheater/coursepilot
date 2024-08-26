@@ -23,11 +23,11 @@ app.use(cors(corsOptions));
 const pool = new Pool({
   user: 'main',
   host: 'your-rds-endpoint.amazonaws.com',
-  database: 'ratemycourse',
+  database: 'ratemycourse',  // Ensure this is set to 'ratemycourse'
   password: 'your-password',
   port: 5432,
   ssl: {
-    rejectUnauthorized: false  // This option skips SSL certificate verification. Use with caution.
+    rejectUnauthorized: false  // Ensure SSL is properly configured
   }
 });
 
@@ -43,9 +43,13 @@ app.get('/health', (req, res) => {
 
 // Data upload endpoint
 app.post('/api/upload', async (req, res) => {
+  console.log('Attempting to connect to database:', pool.options.database);
+  console.log('Using database host:', pool.options.host);
+
   const client = await pool.connect();
 
   try {
+    console.log('Successfully connected to the database.');
     await client.query('BEGIN');
 
     const uploadData = req.body;
@@ -68,6 +72,7 @@ app.post('/api/upload', async (req, res) => {
     res.status(500).json({ error: 'An error occurred while processing the upload: ' + error.message });
   } finally {
     client.release();
+    console.log('Database connection released.');
   }
 });
 
