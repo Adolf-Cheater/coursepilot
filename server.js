@@ -136,38 +136,29 @@ async function processUpload(client, data) {
   }
 }
 
-// New retrieval endpoint for searching by course code or professor name
-app.get('/api/search', async (req, res) => {
-  const { query } = req.query;
+// New retrieval endpoint to fetch all courses and professors
+app.get('/api/all-data', async (req, res) => {
   const client = await pool.connect();
 
   try {
-    const searchPattern = `%${query}%`;
-
-    // Queries to fetch matching courses and professors
-    const courseQuery = `
+    // Fetch all courses
+    const coursesQuery = `
       SELECT course_code, course_name
       FROM courses
-      WHERE course_code ILIKE $1 OR course_name ILIKE $1
-      LIMIT 10
     `;
+    const coursesResult = await client.query(coursesQuery);
 
-    const professorQuery = `
+    // Fetch all professors
+    const professorsQuery = `
       SELECT i.first_name, i.last_name, d.department_name
       FROM instructors i
       JOIN departments d ON i.department_id = d.department_id
-      WHERE i.first_name ILIKE $1 OR i.last_name ILIKE $1 OR CONCAT(i.first_name, ' ', i.last_name) ILIKE $1
-      LIMIT 10
     `;
-
-    const [courseResult, professorResult] = await Promise.all([
-      client.query(courseQuery, [searchPattern]),
-      client.query(professorQuery, [searchPattern])
-    ]);
+    const professorsResult = await client.query(professorsQuery);
 
     res.json({
-      courses: courseResult.rows,
-      professors: professorResult.rows
+      courses: coursesResult.rows,
+      professors: professorsResult.rows
     });
   } catch (error) {
     console.error('Error fetching data:', error);
