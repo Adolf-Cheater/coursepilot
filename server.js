@@ -32,7 +32,7 @@ app.get('/health', (req, res) => {
   res.status(200).json({ status: 'OK', message: 'Server is running' });
 });
 
-// Data upload endpoint (retained from your current implementation)
+// Data upload endpoint
 app.post('/api/upload', async (req, res) => {
   console.log('Attempting to connect to database:', pool.options.database);
   console.log('Using database host:', pool.options.host);
@@ -45,7 +45,6 @@ app.post('/api/upload', async (req, res) => {
 
     const uploadData = req.body;
 
-    // Handle bulk upload if data is an array, or single upload otherwise
     if (Array.isArray(uploadData)) {
       for (const data of uploadData) {
         await processUpload(client, data);
@@ -67,32 +66,48 @@ app.post('/api/upload', async (req, res) => {
   }
 });
 
-// Function to process individual upload data (retained from your current implementation)
+// Function to process individual upload data
 async function processUpload(client, data) {
   // Insert or get department
   const departmentResult = await client.query(
-    'INSERT INTO departments (department_name, faculty) VALUES ($1, $2) ON CONFLICT (department_name, faculty) DO UPDATE SET department_name = EXCLUDED.department_name RETURNING department_id',
+    `INSERT INTO departments (department_name, faculty) 
+     VALUES ($1, $2) 
+     ON CONFLICT (department_name, faculty) DO UPDATE 
+     SET department_name = EXCLUDED.department_name 
+     RETURNING department_id`,
     [data.department, data.faculty]
   );
   const departmentId = departmentResult.rows[0].department_id;
 
   // Insert or get instructor
   const instructorResult = await client.query(
-    'INSERT INTO instructors (first_name, last_name, department_id) VALUES ($1, $2, $3) ON CONFLICT (first_name, last_name, department_id) DO UPDATE SET first_name = EXCLUDED.first_name RETURNING instructor_id',
+    `INSERT INTO instructors (first_name, last_name, department_id) 
+     VALUES ($1, $2, $3) 
+     ON CONFLICT (first_name, last_name, department_id) DO UPDATE 
+     SET first_name = EXCLUDED.first_name 
+     RETURNING instructor_id`,
     [data.instructorFirstName, data.instructorLastName, departmentId]
   );
   const instructorId = instructorResult.rows[0].instructor_id;
 
   // Insert or get course
   const courseResult = await client.query(
-    'INSERT INTO courses (course_code) VALUES ($1) ON CONFLICT (course_code) DO UPDATE SET course_code = EXCLUDED.course_code RETURNING course_id',
-    [data.courseCode]
+    `INSERT INTO courses (course_code, course_name) 
+     VALUES ($1, $2) 
+     ON CONFLICT (course_code) DO UPDATE 
+     SET course_name = EXCLUDED.course_name 
+     RETURNING course_id`,
+    [data.courseCode, data.courseName]
   );
   const courseId = courseResult.rows[0].course_id;
 
   // Insert course offering
   const offeringResult = await client.query(
-    'INSERT INTO course_offerings (course_id, instructor_id, academic_year, course_type, section, class_size, response_count, process_date) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) ON CONFLICT (course_id, instructor_id, academic_year, course_type, section) DO UPDATE SET class_size = EXCLUDED.class_size, response_count = EXCLUDED.response_count, process_date = EXCLUDED.process_date RETURNING offering_id',
+    `INSERT INTO course_offerings (course_id, instructor_id, academic_year, course_type, section, class_size, response_count, process_date) 
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8) 
+     ON CONFLICT (course_id, instructor_id, academic_year, course_type, section) DO UPDATE 
+     SET class_size = EXCLUDED.class_size, response_count = EXCLUDED.response_count, process_date = EXCLUDED.process_date 
+     RETURNING offering_id`,
     [courseId, instructorId, data.academicYear, data.courseType, data.section, data.classSize, data.responseCount, data.processDate]
   );
   const offeringId = offeringResult.rows[0].offering_id;
@@ -101,20 +116,27 @@ async function processUpload(client, data) {
   for (const question of data.questions) {
     // Insert or get question template
     const questionResult = await client.query(
-      'INSERT INTO question_templates (question_text) VALUES ($1) ON CONFLICT (question_text) DO UPDATE SET question_text = EXCLUDED.question_text RETURNING question_id',
+      `INSERT INTO question_templates (question_text) 
+       VALUES ($1) 
+       ON CONFLICT (question_text) DO UPDATE 
+       SET question_text = EXCLUDED.question_text 
+       RETURNING question_id`,
       [question.text]
     );
     const questionId = questionResult.rows[0].question_id;
 
     // Insert question response
     await client.query(
-      'INSERT INTO question_responses (offering_id, question_id, strongly_disagree, disagree, neither, agree, strongly_agree, median) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) ON CONFLICT (offering_id, question_id) DO UPDATE SET strongly_disagree = EXCLUDED.strongly_disagree, disagree = EXCLUDED.disagree, neither = EXCLUDED.neither, agree = EXCLUDED.agree, strongly_agree = EXCLUDED.strongly_agree, median = EXCLUDED.median',
+      `INSERT INTO question_responses (offering_id, question_id, strongly_disagree, disagree, neither, agree, strongly_agree, median) 
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8) 
+       ON CONFLICT (offering_id, question_id) DO UPDATE 
+       SET strongly_disagree = EXCLUDED.strongly_disagree, disagree = EXCLUDED.disagree, neither = EXCLUDED.neither, agree = EXCLUDED.agree, strongly_agree = EXCLUDED.strongly_agree, median = EXCLUDED.median`,
       [offeringId, questionId, question.stronglyDisagree, question.disagree, question.neither, question.agree, question.stronglyAgree, question.median]
     );
   }
 }
 
-// New retrieval endpoint for searching courses and professors
+// New retrieval endpoint for searching by course code or professor name
 app.get('/api/search', async (req, res) => {
   const { query } = req.query;
   const client = await pool.connect();
@@ -131,13 +153,13 @@ app.get('/api/search', async (req, res) => {
     `;
 
     const professorQuery = `
-      SELECT first_name, last_name, department_name
-      FROM instructors
-      WHERE first_name ILIKE $1 OR last_name ILIKE $1 OR CONCAT(first_name, ' ', last_name) ILIKE $1
+      SELECT i.first_name, i.last_name, d.department_name
+      FROM instructors i
+      JOIN departments d ON i.department_id = d.department_id
+      WHERE i.first_name ILIKE $1 OR i.last_name ILIKE $1 OR CONCAT(i.first_name, ' ', i.last_name) ILIKE $1
       LIMIT 10
     `;
 
-    // Execute the queries in parallel
     const [courseResult, professorResult] = await Promise.all([
       client.query(courseQuery, [searchPattern]),
       client.query(professorQuery, [searchPattern])
