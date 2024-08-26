@@ -1,0 +1,20 @@
+{
+    "name": "ratemycourse-upload-service",
+    "version": "1.0.0",
+    "description": "Data upload service for RateMyCourse",
+    "main": "upload.js",
+    "scripts": {
+      "start": "node upload.js",
+      "dev": "nodemon upload.js"
+    },
+    "dependencies": {
+      "express": "^4.17.1",
+      "pg": "^8.7.1"
+    },
+    "devDependencies": {
+      "nodemon": "^2.0.15"
+    },
+    "engines": {
+      "node": ">=14.0.0"
+    }
+  }
