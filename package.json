@@ -4,17 +4,19 @@
     "description": "Data upload service for RateMyCourse",
     "main": "upload.js",
     "scripts": {
-      "start": "node upload.js",
-      "dev": "nodemon upload.js"
+        "start": "node upload.js",
+        "dev": "nodemon upload.js"
     },
     "dependencies": {
-      "express": "^4.17.1",
-      "pg": "^8.7.1"
+        "cors": "^2.8.5",
+        "express": "^4.17.1",
+        "pg": "^8.7.1"
     },
     "devDependencies": {
-      "nodemon": "^2.0.15"
+        "nodemon": "^2.0.15"
     },
     "engines": {
-      "node": ">=14.0.0"
+        "node": ">=14.0.0"
     }
-  }
+    
+}
