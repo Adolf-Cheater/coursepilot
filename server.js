@@ -252,6 +252,8 @@ app.get('/api/course/:courseCode', async (req, res) => {
         co.class_size, 
         co.response_count, 
         co.process_date
+      ORDER BY 
+        co.academic_year DESC, co.section ASC
     `;
     const result = await client.query(courseQuery, [courseCode]);
 
@@ -259,33 +261,38 @@ app.get('/api/course/:courseCode', async (req, res) => {
       return res.status(404).json({ error: 'Course not found' });
     }
 
-    // Fetch questions and responses for the course
-    const questionsQuery = `
-      SELECT 
-        qt.question_text, 
-        qr.strongly_disagree, 
-        qr.disagree, 
-        qr.neither, 
-        qr.agree, 
-        qr.strongly_agree, 
-        qr.median
-      FROM 
-        question_responses qr
-      JOIN 
-        question_templates qt ON qr.question_id = qt.question_id
-      JOIN 
-        course_offerings co ON qr.offering_id = co.offering_id
-      JOIN 
-        courses c ON co.course_id = c.course_id
-      WHERE 
-        c.course_code = $1
-    `;
-    const questionsResult = await client.query(questionsQuery, [courseCode]);
+    // Fetch questions and responses for each offering
+    const courseOfferings = result.rows;
 
-    const courseDetails = result.rows[0];
-    courseDetails.questions = questionsResult.rows;
+    for (const offering of courseOfferings) {
+      const questionsQuery = `
+        SELECT 
+          qt.question_text, 
+          qr.strongly_disagree, 
+          qr.disagree, 
+          qr.neither, 
+          qr.agree, 
+          qr.strongly_agree, 
+          qr.median
+        FROM 
+          question_responses qr
+        JOIN 
+          question_templates qt ON qr.question_id = qt.question_id
+        WHERE 
+          qr.offering_id = (
+            SELECT co.offering_id 
+            FROM course_offerings co 
+            JOIN courses c ON co.course_id = c.course_id 
+            WHERE c.course_code = $1 
+              AND co.academic_year = $2 
+              AND co.section = $3
+          )
+      `;
+      const questionsResult = await client.query(questionsQuery, [courseCode, offering.academic_year, offering.section]);
+      offering.questions = questionsResult.rows;
+    }
 
-    res.json(courseDetails);
+    res.json(courseOfferings);
   } catch (error) {
     console.error('Error fetching course details:', error);
     res.status(500).json({ error: 'An error occurred while fetching course details.' });
@@ -293,6 +300,7 @@ app.get('/api/course/:courseCode', async (req, res) => {
     client.release();
   }
 });
+
 // Start the server
 const PORT = process.env.PORT || 8000;
 app.listen(PORT, () => {
