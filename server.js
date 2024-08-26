@@ -214,6 +214,7 @@ app.get('/api/course/:courseCode', async (req, res) => {
   const client = await pool.connect();
 
   try {
+    // Main query to fetch course offerings and average median rating
     const courseQuery = `
       SELECT 
         c.course_code, 
@@ -278,16 +279,10 @@ app.get('/api/course/:courseCode', async (req, res) => {
           question_responses qr
         JOIN 
           question_templates qt ON qr.question_id = qt.question_id
-        JOIN 
-          course_offerings co ON qr.offering_id = co.offering_id
-        JOIN 
-          courses c ON co.course_id = c.course_id
         WHERE 
-          c.course_code = $1 
-          AND co.academic_year = $2 
-          AND co.section = $3
+          qr.offering_id = $1
       `;
-      const questionsResult = await client.query(questionsQuery, [courseCode, offering.academic_year, offering.section]);
+      const questionsResult = await client.query(questionsQuery, [offering.offering_id]);
       offering.questions = questionsResult.rows;
     }
 
