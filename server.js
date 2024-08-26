@@ -1,5 +1,6 @@
 const express = require('express');
 const { Pool } = require('pg');
+const cors = require('cors');
 const app = express();
 
 // Configure PostgreSQL connection
@@ -11,6 +12,10 @@ const pool = new Pool({
   port: 5432,
 });
 
+// Enable CORS for all routes
+app.use(cors());
+
+// Parse JSON bodies
 app.use(express.json());
 
 app.post('/api/upload', async (req, res) => {
@@ -20,14 +25,22 @@ app.post('/api/upload', async (req, res) => {
       await client.query('BEGIN');
   
       const uploadData = req.body;
-      await processUpload(client, uploadData);
+      
+      // Check if uploadData is an array (bulk upload) or a single object
+      if (Array.isArray(uploadData)) {
+        for (const data of uploadData) {
+          await processUpload(client, data);
+        }
+      } else {
+        await processUpload(client, uploadData);
+      }
   
       await client.query('COMMIT');
       res.status(200).json({ message: 'Data uploaded successfully' });
     } catch (error) {
       await client.query('ROLLBACK');
       console.error('Error processing upload:', error);
-      res.status(500).json({ error: 'An error occurred while processing the upload' });
+      res.status(500).json({ error: 'An error occurred while processing the upload: ' + error.message });
     } finally {
       client.release();
     }
@@ -78,6 +91,11 @@ app.post('/api/upload', async (req, res) => {
       );
     }
   }
+
+// Health check route
+app.get('/health', (req, res) => {
+  res.status(200).json({ status: 'OK', message: 'Server is running' });
+});
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
