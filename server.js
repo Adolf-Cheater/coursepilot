@@ -22,10 +22,13 @@ app.use(cors(corsOptions));
 // Configure PostgreSQL connection
 const pool = new Pool({
   user: 'main',
-  host: 'general-usuage.chkscywoifga.us-east-2.rds.amazonaws.com',
+  host: 'your-rds-endpoint.amazonaws.com',
   database: 'ratemycourse',
-  password: 'Woshishabi2004!',
+  password: 'your-password',
   port: 5432,
+  ssl: {
+    rejectUnauthorized: false  // This option skips SSL certificate verification. Use with caution.
+  }
 });
 
 // Root route for basic health check
