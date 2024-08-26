@@ -123,6 +123,73 @@ async function processUpload(client, data) {
   }
 }
 
+// New retrieval endpoint for searching by course code or professor name
+app.get('/api/search', async (req, res) => {
+  const { query, type } = req.query;
+  const client = await pool.connect();
+
+  try {
+    let searchQuery;
+    let queryParams;
+
+    if (type === 'course') {
+      searchQuery = `
+        SELECT 
+          co.offering_id,
+          c.course_code,
+          co.academic_year,
+          co.course_type,
+          co.section,
+          co.class_size,
+          co.response_count,
+          co.process_date,
+          i.first_name,
+          i.last_name,
+          d.department_name,
+          d.faculty
+        FROM course_offerings co
+        JOIN courses c ON co.course_id = c.course_id
+        JOIN instructors i ON co.instructor_id = i.instructor_id
+        JOIN departments d ON i.department_id = d.department_id
+        WHERE c.course_code = $1
+      `;
+      queryParams = [query];
+    } else if (type === 'professor') {
+      searchQuery = `
+        SELECT 
+          co.offering_id,
+          c.course_code,
+          co.academic_year,
+          co.course_type,
+          co.section,
+          co.class_size,
+          co.response_count,
+          co.process_date,
+          i.first_name,
+          i.last_name,
+          d.department_name,
+          d.faculty
+        FROM course_offerings co
+        JOIN courses c ON co.course_id = c.course_id
+        JOIN instructors i ON co.instructor_id = i.instructor_id
+        JOIN departments d ON i.department_id = d.department_id
+        WHERE i.first_name = $1 AND i.last_name = $2
+      `;
+      queryParams = query.split(' ');
+    } else {
+      return res.status(400).json({ error: 'Invalid search type. Must be either "course" or "professor".' });
+    }
+
+    const result = await client.query(searchQuery, queryParams);
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Error fetching data:', error);
+    res.status(500).json({ error: 'An error occurred while fetching data.' });
+  } finally {
+    client.release();
+  }
+});
+
 // Start the server
 const PORT = process.env.PORT || 8000;
 app.listen(PORT, () => {
