@@ -251,7 +251,7 @@ app.get('/api/course/:courseCode', async (req, res) => {
   const client = await pool.connect();
 
   try {
-    // Main query to fetch course offerings, lab offerings, and average median rating
+    // Main query to fetch course offerings, lab offerings, average median rating, and coursesdb information
     const courseQuery = `
       SELECT 
         c.course_code, 
@@ -267,7 +267,9 @@ app.get('/api/course/:courseCode', async (req, res) => {
         co.process_date,
         co.offering_id,
         'LEC' as offering_type,
-        AVG(qr.median) as average_median
+        AVG(qr.median) as average_median,
+        cdb.course_title,
+        cdb.course_description
       FROM 
         courses c
       JOIN 
@@ -278,6 +280,8 @@ app.get('/api/course/:courseCode', async (req, res) => {
         departments d ON i.department_id = d.department_id
       LEFT JOIN 
         question_responses qr ON co.offering_id = qr.offering_id
+      LEFT JOIN
+        coursesdb cdb ON c.course_code = CONCAT(cdb.course_letter, ' ', cdb.course_number)
       WHERE 
         c.course_code = $1
       GROUP BY 
@@ -292,8 +296,10 @@ app.get('/api/course/:courseCode', async (req, res) => {
         co.class_size, 
         co.response_count, 
         co.process_date,
-        co.offering_id
-      
+        co.offering_id,
+        cdb.course_title,
+        cdb.course_description
+
       UNION ALL
 
       SELECT 
@@ -310,7 +316,9 @@ app.get('/api/course/:courseCode', async (req, res) => {
         lo.lab_process_date as process_date,
         lo.lab_offering_id as offering_id,
         'LAB' as offering_type,
-        AVG(qr.median) as average_median
+        AVG(qr.median) as average_median,
+        cdb.course_title,
+        cdb.course_description
       FROM 
         courses c
       JOIN 
@@ -321,6 +329,8 @@ app.get('/api/course/:courseCode', async (req, res) => {
         departments d ON i.department_id = d.department_id
       LEFT JOIN 
         question_responses qr ON lo.lab_offering_id = qr.lab_offering_id
+      LEFT JOIN
+        coursesdb cdb ON c.course_code = CONCAT(cdb.course_letter, ' ', cdb.course_number)
       WHERE 
         c.course_code = $1
       GROUP BY 
@@ -334,7 +344,9 @@ app.get('/api/course/:courseCode', async (req, res) => {
         lo.lab_size, 
         lo.lab_response_count, 
         lo.lab_process_date,
-        lo.lab_offering_id
+        lo.lab_offering_id,
+        cdb.course_title,
+        cdb.course_description
       ORDER BY 
         academic_year DESC, section ASC
     `;
