@@ -173,6 +173,7 @@ async function processUpload(client, data) {
 }
 
 // New retrieval endpoint for searching by course code or professor name
+// Revised search endpoint
 app.get('/api/search', async (req, res) => {
   const { query } = req.query;
   const client = await pool.connect();
@@ -182,9 +183,17 @@ app.get('/api/search', async (req, res) => {
 
     // Queries to fetch matching courses and professors
     const courseQuery = `
-      SELECT course_code, course_name
-      FROM courses
-      WHERE course_code ILIKE $1 OR course_name ILIKE $1
+      SELECT 
+        c.course_code, 
+        c.course_name,
+        COALESCE(cd.courseTitle, '') AS course_title,
+        COALESCE(cd.courseDescription, '') AS course_description
+      FROM 
+        courses c
+      LEFT JOIN 
+        coursesdb cd ON c.course_code = CONCAT(cd.courseLetter, cd.courseNumber)
+      WHERE 
+        c.course_code ILIKE $1 OR c.course_name ILIKE $1 OR cd.courseTitle ILIKE $1
       LIMIT 10
     `;
 
@@ -246,6 +255,7 @@ app.get('/api/all-data', async (req, res) => {
 });
 
 // Course details endpoint
+// Revised course details endpoint
 app.get('/api/course/:courseCode', async (req, res) => {
   const { courseCode } = req.params;
   const client = await pool.connect();
@@ -256,6 +266,8 @@ app.get('/api/course/:courseCode', async (req, res) => {
       SELECT 
         c.course_code, 
         c.course_name, 
+        COALESCE(cd.courseTitle, c.course_name) AS course_title,
+        COALESCE(cd.courseDescription, '') AS course_description,
         i.first_name, 
         i.last_name, 
         d.department_name, 
@@ -270,6 +282,8 @@ app.get('/api/course/:courseCode', async (req, res) => {
         AVG(qr.median) as average_median
       FROM 
         courses c
+      LEFT JOIN 
+        coursesdb cd ON c.course_code = CONCAT(cd.courseLetter, cd.courseNumber)
       JOIN 
         course_offerings co ON c.course_id = co.course_id
       JOIN 
@@ -283,6 +297,8 @@ app.get('/api/course/:courseCode', async (req, res) => {
       GROUP BY 
         c.course_code, 
         c.course_name, 
+        cd.courseTitle,
+        cd.courseDescription,
         i.first_name, 
         i.last_name, 
         d.department_name, 
@@ -299,6 +315,8 @@ app.get('/api/course/:courseCode', async (req, res) => {
       SELECT 
         c.course_code, 
         c.course_name, 
+        COALESCE(cd.courseTitle, c.course_name) AS course_title,
+        COALESCE(cd.courseDescription, '') AS course_description,
         i.first_name, 
         i.last_name, 
         d.department_name, 
@@ -313,6 +331,8 @@ app.get('/api/course/:courseCode', async (req, res) => {
         AVG(qr.median) as average_median
       FROM 
         courses c
+      LEFT JOIN 
+        coursesdb cd ON c.course_code = CONCAT(cd.courseLetter, cd.courseNumber)
       JOIN 
         lab_offerings lo ON c.course_id = lo.course_id
       JOIN 
@@ -326,6 +346,8 @@ app.get('/api/course/:courseCode', async (req, res) => {
       GROUP BY 
         c.course_code, 
         c.course_name, 
+        cd.courseTitle,
+        cd.courseDescription,
         i.first_name, 
         i.last_name, 
         d.department_name, 
