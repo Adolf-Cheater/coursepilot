@@ -126,7 +126,7 @@ async function processUpload(client, data) {
       );
       const questionId = questionResult.rows[0].question_id;
 
-      // Insert question response
+      // Insert question response for lecture
       await client.query(
         `INSERT INTO question_responses (offering_id, question_id, strongly_disagree, disagree, neither, agree, strongly_agree, median) 
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8) 
@@ -160,7 +160,7 @@ async function processUpload(client, data) {
       );
       const questionId = questionResult.rows[0].question_id;
 
-      // Insert question response
+      // Insert question response for lab
       await client.query(
         `INSERT INTO question_responses (lab_offering_id, question_id, strongly_disagree, disagree, neither, agree, strongly_agree, median) 
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8) 
@@ -374,7 +374,7 @@ app.get('/api/course/:courseCode', async (req, res) => {
     res.status(500).json({ error: 'An error occurred while fetching course details.' });
   } finally {
     client.release();
-  }
+  } 
 });
 
 // Start the server
