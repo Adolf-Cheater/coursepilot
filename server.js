@@ -101,38 +101,74 @@ async function processUpload(client, data) {
   );
   const courseId = courseResult.rows[0].course_id;
 
-  // Insert course offering
-  const offeringResult = await client.query(
-    `INSERT INTO course_offerings (course_id, instructor_id, academic_year, course_type, section, class_size, response_count, process_date) 
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8) 
-     ON CONFLICT (course_id, instructor_id, academic_year, course_type, section) DO UPDATE 
-     SET class_size = EXCLUDED.class_size, response_count = EXCLUDED.response_count, process_date = EXCLUDED.process_date 
-     RETURNING offering_id`,
-    [courseId, instructorId, data.academicYear, data.courseType, data.section, data.classSize, data.responseCount, data.processDate]
-  );
-  const offeringId = offeringResult.rows[0].offering_id;
-
-  // Process questions
-  for (const question of data.questions) {
-    // Insert or get question template
-    const questionResult = await client.query(
-      `INSERT INTO question_templates (question_text) 
-       VALUES ($1) 
-       ON CONFLICT (question_text) DO UPDATE 
-       SET question_text = EXCLUDED.question_text 
-       RETURNING question_id`,
-      [question.text]
-    );
-    const questionId = questionResult.rows[0].question_id;
-
-    // Insert question response
-    await client.query(
-      `INSERT INTO question_responses (offering_id, question_id, strongly_disagree, disagree, neither, agree, strongly_agree, median) 
+  if (data.courseType === 'LEC') {
+    // Insert lecture offering
+    const offeringResult = await client.query(
+      `INSERT INTO course_offerings (course_id, instructor_id, academic_year, course_type, section, class_size, response_count, process_date) 
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8) 
-       ON CONFLICT (offering_id, question_id) DO UPDATE 
-       SET strongly_disagree = EXCLUDED.strongly_disagree, disagree = EXCLUDED.disagree, neither = EXCLUDED.neither, agree = EXCLUDED.agree, strongly_agree = EXCLUDED.strongly_agree, median = EXCLUDED.median`,
-      [offeringId, questionId, question.stronglyDisagree, question.disagree, question.neither, question.agree, question.stronglyAgree, question.median]
+       ON CONFLICT (course_id, instructor_id, academic_year, course_type, section) DO UPDATE 
+       SET class_size = EXCLUDED.class_size, response_count = EXCLUDED.response_count, process_date = EXCLUDED.process_date 
+       RETURNING offering_id`,
+      [courseId, instructorId, data.academicYear, data.courseType, data.section, data.classSize, data.responseCount, data.processDate]
     );
+    const offeringId = offeringResult.rows[0].offering_id;
+
+    // Process questions
+    for (const question of data.questions) {
+      // Insert or get question template
+      const questionResult = await client.query(
+        `INSERT INTO question_templates (question_text) 
+         VALUES ($1) 
+         ON CONFLICT (question_text) DO UPDATE 
+         SET question_text = EXCLUDED.question_text 
+         RETURNING question_id`,
+        [question.text]
+      );
+      const questionId = questionResult.rows[0].question_id;
+
+      // Insert question response
+      await client.query(
+        `INSERT INTO question_responses (offering_id, question_id, strongly_disagree, disagree, neither, agree, strongly_agree, median) 
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8) 
+         ON CONFLICT (offering_id, question_id) DO UPDATE 
+         SET strongly_disagree = EXCLUDED.strongly_disagree, disagree = EXCLUDED.disagree, neither = EXCLUDED.neither, agree = EXCLUDED.agree, strongly_agree = EXCLUDED.strongly_agree, median = EXCLUDED.median`,
+        [offeringId, questionId, question.stronglyDisagree, question.disagree, question.neither, question.agree, question.stronglyAgree, question.median]
+      );
+    }
+  } else if (data.courseType === 'LAB') {
+    // Insert lab offering
+    const labOfferingResult = await client.query(
+      `INSERT INTO lab_offerings (course_id, instructor_id, academic_year, lab_section, lab_size, lab_response_count, lab_process_date) 
+       VALUES ($1, $2, $3, $4, $5, $6, $7) 
+       ON CONFLICT (course_id, instructor_id, academic_year, lab_section) DO UPDATE 
+       SET lab_size = EXCLUDED.lab_size, lab_response_count = EXCLUDED.lab_response_count, lab_process_date = EXCLUDED.lab_process_date 
+       RETURNING lab_offering_id`,
+      [courseId, instructorId, data.academicYear, data.section, data.classSize, data.responseCount, data.processDate]
+    );
+    const labOfferingId = labOfferingResult.rows[0].lab_offering_id;
+
+    // Process questions
+    for (const question of data.questions) {
+      // Insert or get question template
+      const questionResult = await client.query(
+        `INSERT INTO question_templates (question_text) 
+         VALUES ($1) 
+         ON CONFLICT (question_text) DO UPDATE 
+         SET question_text = EXCLUDED.question_text 
+         RETURNING question_id`,
+        [question.text]
+      );
+      const questionId = questionResult.rows[0].question_id;
+
+      // Insert question response
+      await client.query(
+        `INSERT INTO question_responses (lab_offering_id, question_id, strongly_disagree, disagree, neither, agree, strongly_agree, median) 
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8) 
+         ON CONFLICT (lab_offering_id, question_id) DO UPDATE 
+         SET strongly_disagree = EXCLUDED.strongly_disagree, disagree = EXCLUDED.disagree, neither = EXCLUDED.neither, agree = EXCLUDED.agree, strongly_agree = EXCLUDED.strongly_agree, median = EXCLUDED.median`,
+        [labOfferingId, questionId, question.stronglyDisagree, question.disagree, question.neither, question.agree, question.stronglyAgree, question.median]
+      );
+    }
   }
 }
 
@@ -177,6 +213,7 @@ app.get('/api/search', async (req, res) => {
   }
 });
 
+// Retrieve all courses and professors
 app.get('/api/all-data', async (req, res) => {
   const client = await pool.connect();
 
@@ -214,7 +251,7 @@ app.get('/api/course/:courseCode', async (req, res) => {
   const client = await pool.connect();
 
   try {
-    // Main query to fetch course offerings and average median rating
+    // Main query to fetch course offerings, lab offerings, and average median rating
     const courseQuery = `
       SELECT 
         c.course_code, 
@@ -229,6 +266,7 @@ app.get('/api/course/:courseCode', async (req, res) => {
         co.response_count, 
         co.process_date,
         co.offering_id,
+        'LEC' as offering_type,
         AVG(qr.median) as average_median
       FROM 
         courses c
@@ -255,8 +293,50 @@ app.get('/api/course/:courseCode', async (req, res) => {
         co.response_count, 
         co.process_date,
         co.offering_id
+      
+      UNION ALL
+
+      SELECT 
+        c.course_code, 
+        c.course_name, 
+        i.first_name, 
+        i.last_name, 
+        d.department_name, 
+        lo.academic_year, 
+        'LAB' as course_type, 
+        lo.lab_section as section, 
+        lo.lab_size as class_size, 
+        lo.lab_response_count as response_count, 
+        lo.lab_process_date as process_date,
+        lo.lab_offering_id as offering_id,
+        'LAB' as offering_type,
+        AVG(qr.median) as average_median
+      FROM 
+        courses c
+      JOIN 
+        lab_offerings lo ON c.course_id = lo.course_id
+      JOIN 
+        instructors i ON lo.instructor_id = i.instructor_id
+      JOIN 
+        departments d ON i.department_id = d.department_id
+      LEFT JOIN 
+        question_responses qr ON lo.lab_offering_id = qr.lab_offering_id
+      WHERE 
+        c.course_code = $1
+      GROUP BY 
+        c.course_code, 
+        c.course_name, 
+        i.first_name, 
+        i.last_name, 
+        d.department_name, 
+        lo.academic_year, 
+        lo.lab_section, 
+        lo.lab_size, 
+        lo.lab_response_count, 
+        lo.lab_process_date,
+        lo.lab_offering_id
       ORDER BY 
-        co.academic_year DESC, co.section ASC
+        academic_year DESC, section ASC
     `;
     const result = await client.query(courseQuery, [courseCode]);
 
@@ -282,7 +362,7 @@ app.get('/api/course/:courseCode', async (req, res) => {
         JOIN 
           question_templates qt ON qr.question_id = qt.question_id
         WHERE 
-          qr.offering_id = $1
+          qr.${offering.offering_type === 'LEC' ? 'offering_id' : 'lab_offering_id'} = $1
       `;
       const questionsResult = await client.query(questionsQuery, [offering.offering_id]);
       offering.questions = questionsResult.rows;
