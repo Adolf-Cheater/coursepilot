@@ -172,6 +172,40 @@ async function processUpload(client, data) {
   }
 }
 
+
+
+// Retrieve all courses and professors
+app.get('/api/all-data', async (req, res) => {
+  const client = await pool.connect();
+
+  try {
+    // Fetch all courses
+    const coursesQuery = `
+      SELECT course_code, course_name
+      FROM courses
+    `;
+    const coursesResult = await client.query(coursesQuery);
+
+    // Fetch all professors
+    const professorsQuery = `
+      SELECT i.first_name, i.last_name, d.department_name
+      FROM instructors i
+      JOIN departments d ON i.department_id = d.department_id
+    `;
+    const professorsResult = await client.query(professorsQuery);
+
+    res.json({
+      courses: coursesResult.rows,
+      professors: professorsResult.rows
+    });
+  } catch (error) {
+    console.error('Error fetching data:', error);
+    res.status(500).json({ error: 'An error occurred while fetching data.' });
+  } finally {
+    client.release();
+  }
+});
+
 // New retrieval endpoint for searching by course code or professor name
 // Revised search endpoint
 app.get('/api/search', async (req, res) => {
@@ -222,39 +256,6 @@ app.get('/api/search', async (req, res) => {
   }
 });
 
-// Retrieve all courses and professors
-app.get('/api/all-data', async (req, res) => {
-  const client = await pool.connect();
-
-  try {
-    // Fetch all courses
-    const coursesQuery = `
-      SELECT course_code, course_name
-      FROM courses
-    `;
-    const coursesResult = await client.query(coursesQuery);
-
-    // Fetch all professors
-    const professorsQuery = `
-      SELECT i.first_name, i.last_name, d.department_name
-      FROM instructors i
-      JOIN departments d ON i.department_id = d.department_id
-    `;
-    const professorsResult = await client.query(professorsQuery);
-
-    res.json({
-      courses: coursesResult.rows,
-      professors: professorsResult.rows
-    });
-  } catch (error) {
-    console.error('Error fetching data:', error);
-    res.status(500).json({ error: 'An error occurred while fetching data.' });
-  } finally {
-    client.release();
-  }
-});
-
-// Course details endpoint
 // Revised course details endpoint
 app.get('/api/course/:courseCode', async (req, res) => {
   const { courseCode } = req.params;
@@ -266,8 +267,8 @@ app.get('/api/course/:courseCode', async (req, res) => {
       SELECT 
         c.course_code, 
         c.course_name, 
-        COALESCE(cd.courseTitle, c.course_name) AS course_title,
-        COALESCE(cd.courseDescription, '') AS course_description,
+        COALESCE(cd.course_title, c.course_name) AS course_title,
+        COALESCE(cd.course_description, '') AS course_description,
         i.first_name, 
         i.last_name, 
         d.department_name, 
@@ -283,7 +284,7 @@ app.get('/api/course/:courseCode', async (req, res) => {
       FROM 
         courses c
       LEFT JOIN 
-        coursesdb cd ON c.course_code = CONCAT(cd.courseLetter, cd.courseNumber)
+        coursesdb cd ON c.course_code = CONCAT(cd.course_letter, cd.course_number)
       JOIN 
         course_offerings co ON c.course_id = co.course_id
       JOIN 
@@ -297,8 +298,8 @@ app.get('/api/course/:courseCode', async (req, res) => {
       GROUP BY 
         c.course_code, 
         c.course_name, 
-        cd.courseTitle,
-        cd.courseDescription,
+        cd.course_title,
+        cd.course_description,
         i.first_name, 
         i.last_name, 
         d.department_name, 
@@ -315,8 +316,8 @@ app.get('/api/course/:courseCode', async (req, res) => {
       SELECT 
         c.course_code, 
         c.course_name, 
-        COALESCE(cd.courseTitle, c.course_name) AS course_title,
-        COALESCE(cd.courseDescription, '') AS course_description,
+        COALESCE(cd.course_title, c.course_name) AS course_title,
+        COALESCE(cd.course_description, '') AS course_description,
         i.first_name, 
         i.last_name, 
         d.department_name, 
@@ -332,7 +333,7 @@ app.get('/api/course/:courseCode', async (req, res) => {
       FROM 
         courses c
       LEFT JOIN 
-        coursesdb cd ON c.course_code = CONCAT(cd.courseLetter, cd.courseNumber)
+        coursesdb cd ON c.course_code = CONCAT(cd.course_letter, cd.course_number)
       JOIN 
         lab_offerings lo ON c.course_id = lo.course_id
       JOIN 
@@ -346,8 +347,8 @@ app.get('/api/course/:courseCode', async (req, res) => {
       GROUP BY 
         c.course_code, 
         c.course_name, 
-        cd.courseTitle,
-        cd.courseDescription,
+        cd.course_title,
+        cd.course_description,
         i.first_name, 
         i.last_name, 
         d.department_name, 
