@@ -251,8 +251,8 @@ app.get('/api/course/:courseCode', async (req, res) => {
   const client = await pool.connect();
 
   try {
-    // Fetch lecture offerings
-    const lecQuery = `
+    // Query to fetch only lecture offerings
+    const sectionsQuery = `
       SELECT 
         c.course_code, 
         c.course_name, 
@@ -260,12 +260,12 @@ app.get('/api/course/:courseCode', async (req, res) => {
         i.last_name, 
         d.department_name, 
         co.academic_year, 
-        'LEC' as course_type, 
         co.section, 
         co.class_size, 
         co.response_count, 
         co.process_date,
-        co.offering_id AS id,
+        co.offering_id,
+        'LEC' as offering_type,
         AVG(qr.median) as average_median
       FROM 
         courses c
@@ -278,7 +278,7 @@ app.get('/api/course/:courseCode', async (req, res) => {
       LEFT JOIN 
         question_responses qr ON co.offering_id = qr.offering_id
       WHERE 
-        c.course_code = $1
+        c.course_code = $1 AND co.course_type = 'LEC'
       GROUP BY 
         c.course_code, 
         c.course_name, 
@@ -291,10 +291,12 @@ app.get('/api/course/:courseCode', async (req, res) => {
         co.response_count, 
         co.process_date,
         co.offering_id
+      ORDER BY 
+        co.academic_year DESC, co.section ASC
     `;
-
-    // Fetch lab offerings
-    const labQuery = `
+    
+    // Query to fetch only lab offerings
+    const labsQuery = `
       SELECT 
         c.course_code, 
         c.course_name, 
@@ -302,12 +304,12 @@ app.get('/api/course/:courseCode', async (req, res) => {
         i.last_name, 
         d.department_name, 
         lo.academic_year, 
-        'LAB' as course_type, 
         lo.lab_section as section, 
         lo.lab_size as class_size, 
         lo.lab_response_count as response_count, 
         lo.lab_process_date as process_date,
-        lo.lab_offering_id AS id,
+        lo.lab_offering_id as offering_id,
+        'LAB' as offering_type,
         AVG(qr.median) as average_median
       FROM 
         courses c
@@ -333,67 +335,22 @@ app.get('/api/course/:courseCode', async (req, res) => {
         lo.lab_response_count, 
         lo.lab_process_date,
         lo.lab_offering_id
+      ORDER BY 
+        lo.academic_year DESC, lo.lab_section ASC
     `;
 
-    const [lecResult, labResult] = await Promise.all([
-      client.query(lecQuery, [courseCode]),
-      client.query(labQuery, [courseCode])
+    const [sectionsResult, labsResult] = await Promise.all([
+      client.query(sectionsQuery, [courseCode]),
+      client.query(labsQuery, [courseCode])
     ]);
 
-    if (lecResult.rows.length === 0 && labResult.rows.length === 0) {
-      return res.status(404).json({ error: 'Course not found' });
-    }
-
-    // Combine the results
-    const courseOfferings = {
-      lectures: lecResult.rows,
-      labs: labResult.rows,
+    const courseData = {
+      sections: sectionsResult.rows,
+      labs: labsResult.rows,
     };
 
-    // Fetch and attach questions to each offering
-    for (const offering of courseOfferings.lectures) {
-      const questionsQuery = `
-        SELECT 
-          qt.question_text, 
-          qr.strongly_disagree, 
-          qr.disagree, 
-          qr.neither, 
-          qr.agree, 
-          qr.strongly_agree, 
-          qr.median
-        FROM 
-          question_responses qr
-        JOIN 
-          question_templates qt ON qr.question_id = qt.question_id
-        WHERE 
-          qr.offering_id = $1
-      `;
-      const questionsResult = await client.query(questionsQuery, [offering.id]);
-      offering.questions = questionsResult.rows;
-    }
-
-    for (const offering of courseOfferings.labs) {
-      const questionsQuery = `
-        SELECT 
-          qt.question_text, 
-          qr.strongly_disagree, 
-          qr.disagree, 
-          qr.neither, 
-          qr.agree, 
-          qr.strongly_agree, 
-          qr.median
-        FROM 
-          question_responses qr
-        JOIN 
-          question_templates qt ON qr.question_id = qt.question_id
-        WHERE 
-          qr.lab_offering_id = $1
-      `;
-      const questionsResult = await client.query(questionsQuery, [offering.id]);
-      offering.questions = questionsResult.rows;
-    }
-
-    res.json(courseOfferings);
+    // Return both sections and labs data
+    res.json(courseData);
   } catch (error) {
     console.error('Error fetching course details:', error);
     res.status(500).json({ error: 'An error occurred while fetching course details.' });
