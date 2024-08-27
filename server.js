@@ -251,7 +251,8 @@ app.get('/api/course/:courseCode', async (req, res) => {
   const client = await pool.connect();
 
   try {
-    const courseQuery = `
+    // Fetch lecture offerings
+    const lecQuery = `
       SELECT 
         c.course_code, 
         c.course_name, 
@@ -259,13 +260,12 @@ app.get('/api/course/:courseCode', async (req, res) => {
         i.last_name, 
         d.department_name, 
         co.academic_year, 
-        co.course_type, 
+        'LEC' as course_type, 
         co.section, 
         co.class_size, 
         co.response_count, 
         co.process_date,
-        co.offering_id,
-        'LEC' as offering_type,
+        co.offering_id AS id,
         AVG(qr.median) as average_median
       FROM 
         courses c
@@ -286,15 +286,15 @@ app.get('/api/course/:courseCode', async (req, res) => {
         i.last_name, 
         d.department_name, 
         co.academic_year, 
-        co.course_type, 
         co.section, 
         co.class_size, 
         co.response_count, 
         co.process_date,
         co.offering_id
-      
-      UNION ALL
+    `;
 
+    // Fetch lab offerings
+    const labQuery = `
       SELECT 
         c.course_code, 
         c.course_name, 
@@ -307,8 +307,7 @@ app.get('/api/course/:courseCode', async (req, res) => {
         lo.lab_size as class_size, 
         lo.lab_response_count as response_count, 
         lo.lab_process_date as process_date,
-        lo.lab_offering_id as offering_id,
-        'LAB' as offering_type,
+        lo.lab_offering_id AS id,
         AVG(qr.median) as average_median
       FROM 
         courses c
@@ -334,20 +333,25 @@ app.get('/api/course/:courseCode', async (req, res) => {
         lo.lab_response_count, 
         lo.lab_process_date,
         lo.lab_offering_id
-      ORDER BY 
-        academic_year DESC, section ASC
     `;
 
-    const result = await client.query(courseQuery, [courseCode]);
+    const [lecResult, labResult] = await Promise.all([
+      client.query(lecQuery, [courseCode]),
+      client.query(labQuery, [courseCode])
+    ]);
 
-    if (result.rows.length === 0) {
+    if (lecResult.rows.length === 0 && labResult.rows.length === 0) {
       return res.status(404).json({ error: 'Course not found' });
     }
 
-    const courseOfferings = result.rows;
+    // Combine the results
+    const courseOfferings = {
+      lectures: lecResult.rows,
+      labs: labResult.rows,
+    };
 
-    // Process questions for each offering
-    for (const offering of courseOfferings) {
+    // Fetch and attach questions to each offering
+    for (const offering of courseOfferings.lectures) {
       const questionsQuery = `
         SELECT 
           qt.question_text, 
@@ -362,9 +366,30 @@ app.get('/api/course/:courseCode', async (req, res) => {
         JOIN 
           question_templates qt ON qr.question_id = qt.question_id
         WHERE 
-          qr.${offering.offering_type === 'LEC' ? 'offering_id' : 'lab_offering_id'} = $1
+          qr.offering_id = $1
       `;
-      const questionsResult = await client.query(questionsQuery, [offering.offering_id]);
+      const questionsResult = await client.query(questionsQuery, [offering.id]);
+      offering.questions = questionsResult.rows;
+    }
+
+    for (const offering of courseOfferings.labs) {
+      const questionsQuery = `
+        SELECT 
+          qt.question_text, 
+          qr.strongly_disagree, 
+          qr.disagree, 
+          qr.neither, 
+          qr.agree, 
+          qr.strongly_agree, 
+          qr.median
+        FROM 
+          question_responses qr
+        JOIN 
+          question_templates qt ON qr.question_id = qt.question_id
+        WHERE 
+          qr.lab_offering_id = $1
+      `;
+      const questionsResult = await client.query(questionsQuery, [offering.id]);
       offering.questions = questionsResult.rows;
     }
 
