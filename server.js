@@ -251,7 +251,6 @@ app.get('/api/course/:courseCode', async (req, res) => {
   const client = await pool.connect();
 
   try {
-    // Main query to fetch course offerings, lab offerings, and average median rating
     const courseQuery = `
       SELECT 
         c.course_code, 
@@ -338,15 +337,16 @@ app.get('/api/course/:courseCode', async (req, res) => {
       ORDER BY 
         academic_year DESC, section ASC
     `;
+
     const result = await client.query(courseQuery, [courseCode]);
 
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Course not found' });
     }
 
-    // Fetch questions and responses for each offering
     const courseOfferings = result.rows;
 
+    // Process questions for each offering
     for (const offering of courseOfferings) {
       const questionsQuery = `
         SELECT 
@@ -374,7 +374,7 @@ app.get('/api/course/:courseCode', async (req, res) => {
     res.status(500).json({ error: 'An error occurred while fetching course details.' });
   } finally {
     client.release();
-  } 
+  }
 });
 
 // Start the server
