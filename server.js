@@ -183,17 +183,17 @@ app.get('/api/search', async (req, res) => {
 
     // Queries to fetch matching courses and professors
     const courseQuery = `
-      SELECT 
-        c.course_code, 
+      SELECT
+        c.course_code,
         c.course_name,
-        COALESCE(cd.courseTitle, '') AS course_title,
-        COALESCE(cd.courseDescription, '') AS course_description
-      FROM 
+        COALESCE(cd.course_title, '') AS course_title,
+        COALESCE(cd.course_description, '') AS course_description
+      FROM
         courses c
-      LEFT JOIN 
-        coursesdb cd ON c.course_code = CONCAT(cd.courseLetter, cd.courseNumber)
-      WHERE 
-        c.course_code ILIKE $1 OR c.course_name ILIKE $1 OR cd.courseTitle ILIKE $1
+      LEFT JOIN
+        coursesdb cd ON c.course_code = CONCAT(cd.course_letter, cd.course_number)
+      WHERE
+        c.course_code ILIKE $1 OR c.course_name ILIKE $1 OR cd.course_title ILIKE $1
       LIMIT 10
     `;
 
