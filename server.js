@@ -172,7 +172,46 @@ async function processUpload(client, data) {
   }
 }
 
+// New retrieval endpoint for searching by course code or professor name
+app.get('/api/search', async (req, res) => {
+  const { query } = req.query;
+  const client = await pool.connect();
 
+  try {
+    const searchPattern = `%${query}%`;
+
+    // Queries to fetch matching courses and professors
+    const courseQuery = `
+      SELECT course_code, course_name
+      FROM courses
+      WHERE course_code ILIKE $1 OR course_name ILIKE $1
+      LIMIT 10
+    `;
+
+    const professorQuery = `
+      SELECT i.first_name, i.last_name, d.department_name
+      FROM instructors i
+      JOIN departments d ON i.department_id = d.department_id
+      WHERE i.first_name ILIKE $1 OR i.last_name ILIKE $1 OR CONCAT(i.first_name, ' ', i.last_name) ILIKE $1
+      LIMIT 10
+    `;
+
+    const [courseResult, professorResult] = await Promise.all([
+      client.query(courseQuery, [searchPattern]),
+      client.query(professorQuery, [searchPattern])
+    ]);
+
+    res.json({
+      courses: courseResult.rows,
+      professors: professorResult.rows
+    });
+  } catch (error) {
+    console.error('Error fetching data:', error);
+    res.status(500).json({ error: 'An error occurred while fetching data.' });
+  } finally {
+    client.release();
+  }
+});
 
 // Retrieve all courses and professors
 app.get('/api/all-data', async (req, res) => {
@@ -206,69 +245,17 @@ app.get('/api/all-data', async (req, res) => {
   }
 });
 
-// New retrieval endpoint for searching by course code or professor name
-// Revised search endpoint
-app.get('/api/search', async (req, res) => {
-  const { query } = req.query;
-  const client = await pool.connect();
-
-  try {
-    const searchPattern = `%${query}%`;
-
-    // Queries to fetch matching courses and professors
-    const courseQuery = `
-      SELECT
-        c.course_code,
-        c.course_name,
-        COALESCE(cd.course_title, '') AS course_title,
-        COALESCE(cd.course_description, '') AS course_description
-      FROM
-        courses c
-      LEFT JOIN
-        coursesdb cd ON c.course_code = CONCAT(cd.course_letter, cd.course_number)
-      WHERE
-        c.course_code ILIKE $1 OR c.course_name ILIKE $1 OR cd.course_title ILIKE $1
-      LIMIT 10
-    `;
-
-    const professorQuery = `
-      SELECT i.first_name, i.last_name, d.department_name
-      FROM instructors i
-      JOIN departments d ON i.department_id = d.department_id
-      WHERE i.first_name ILIKE $1 OR i.last_name ILIKE $1 OR CONCAT(i.first_name, ' ', i.last_name) ILIKE $1
-      LIMIT 10
-    `;
-
-    const [courseResult, professorResult] = await Promise.all([
-      client.query(courseQuery, [searchPattern]),
-      client.query(professorQuery, [searchPattern])
-    ]);
-
-    res.json({
-      courses: courseResult.rows,
-      professors: professorResult.rows
-    });
-  } catch (error) {
-    console.error('Error fetching data:', error);
-    res.status(500).json({ error: 'An error occurred while fetching data.' });
-  } finally {
-    client.release();
-  }
-});
-
-// Revised course details endpoint
+// Course details endpoint
 app.get('/api/course/:courseCode', async (req, res) => {
   const { courseCode } = req.params;
   const client = await pool.connect();
 
   try {
-    // Main query to fetch course offerings, lab offerings, and average median rating
+    // Main query to fetch course offerings, lab offerings, average median rating, and coursesdb information
     const courseQuery = `
       SELECT 
         c.course_code, 
         c.course_name, 
-        COALESCE(cd.course_title, c.course_name) AS course_title,
-        COALESCE(cd.course_description, '') AS course_description,
         i.first_name, 
         i.last_name, 
         d.department_name, 
@@ -280,11 +267,11 @@ app.get('/api/course/:courseCode', async (req, res) => {
         co.process_date,
         co.offering_id,
         'LEC' as offering_type,
-        AVG(qr.median) as average_median
+        AVG(qr.median) as average_median,
+        cdb.course_title,
+        cdb.course_description
       FROM 
         courses c
-      LEFT JOIN 
-        coursesdb cd ON c.course_code = CONCAT(cd.course_letter, cd.course_number)
       JOIN 
         course_offerings co ON c.course_id = co.course_id
       JOIN 
@@ -293,13 +280,13 @@ app.get('/api/course/:courseCode', async (req, res) => {
         departments d ON i.department_id = d.department_id
       LEFT JOIN 
         question_responses qr ON co.offering_id = qr.offering_id
+      LEFT JOIN
+        coursesdb cdb ON c.course_code = CONCAT(cdb.course_letter, ' ', cdb.course_number)
       WHERE 
         c.course_code = $1
       GROUP BY 
         c.course_code, 
         c.course_name, 
-        cd.course_title,
-        cd.course_description,
         i.first_name, 
         i.last_name, 
         d.department_name, 
@@ -309,15 +296,15 @@ app.get('/api/course/:courseCode', async (req, res) => {
         co.class_size, 
         co.response_count, 
         co.process_date,
-        co.offering_id
-      
+        co.offering_id,
+        cdb.course_title,
+        cdb.course_description
+
       UNION ALL
 
       SELECT 
         c.course_code, 
         c.course_name, 
-        COALESCE(cd.course_title, c.course_name) AS course_title,
-        COALESCE(cd.course_description, '') AS course_description,
         i.first_name, 
         i.last_name, 
         d.department_name, 
@@ -329,11 +316,11 @@ app.get('/api/course/:courseCode', async (req, res) => {
         lo.lab_process_date as process_date,
         lo.lab_offering_id as offering_id,
         'LAB' as offering_type,
-        AVG(qr.median) as average_median
+        AVG(qr.median) as average_median,
+        cdb.course_title,
+        cdb.course_description
       FROM 
         courses c
-      LEFT JOIN 
-        coursesdb cd ON c.course_code = CONCAT(cd.course_letter, cd.course_number)
       JOIN 
         lab_offerings lo ON c.course_id = lo.course_id
       JOIN 
@@ -342,13 +329,13 @@ app.get('/api/course/:courseCode', async (req, res) => {
         departments d ON i.department_id = d.department_id
       LEFT JOIN 
         question_responses qr ON lo.lab_offering_id = qr.lab_offering_id
+      LEFT JOIN
+        coursesdb cdb ON c.course_code = CONCAT(cdb.course_letter, ' ', cdb.course_number)
       WHERE 
         c.course_code = $1
       GROUP BY 
         c.course_code, 
         c.course_name, 
-        cd.course_title,
-        cd.course_description,
         i.first_name, 
         i.last_name, 
         d.department_name, 
@@ -357,7 +344,9 @@ app.get('/api/course/:courseCode', async (req, res) => {
         lo.lab_size, 
         lo.lab_response_count, 
         lo.lab_process_date,
-        lo.lab_offering_id
+        lo.lab_offering_id,
+        cdb.course_title,
+        cdb.course_description
       ORDER BY 
         academic_year DESC, section ASC
     `;
