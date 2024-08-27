@@ -246,12 +246,13 @@ app.get('/api/all-data', async (req, res) => {
 });
 
 // Course details endpoint
+// Course details endpoint
 app.get('/api/course/:courseCode', async (req, res) => {
   const { courseCode } = req.params;
   const client = await pool.connect();
 
   try {
-    // Query to fetch only lecture offerings
+    // Query to fetch lecture offerings with questions
     const sectionsQuery = `
       SELECT 
         c.course_code, 
@@ -266,7 +267,15 @@ app.get('/api/course/:courseCode', async (req, res) => {
         co.process_date,
         co.offering_id,
         'LEC' as offering_type,
-        AVG(qr.median) as average_median
+        ARRAY_AGG(jsonb_build_object(
+          'question_text', qt.question_text,
+          'strongly_disagree', qr.strongly_disagree,
+          'disagree', qr.disagree,
+          'neither', qr.neither,
+          'agree', qr.agree,
+          'strongly_agree', qr.strongly_agree,
+          'median', qr.median
+        )) AS questions
       FROM 
         courses c
       JOIN 
@@ -277,6 +286,8 @@ app.get('/api/course/:courseCode', async (req, res) => {
         departments d ON i.department_id = d.department_id
       LEFT JOIN 
         question_responses qr ON co.offering_id = qr.offering_id
+      LEFT JOIN 
+        question_templates qt ON qr.question_id = qt.question_id
       WHERE 
         c.course_code = $1 AND co.course_type = 'LEC'
       GROUP BY 
@@ -295,7 +306,7 @@ app.get('/api/course/:courseCode', async (req, res) => {
         co.academic_year DESC, co.section ASC
     `;
     
-    // Query to fetch only lab offerings
+    // Query to fetch lab offerings with questions
     const labsQuery = `
       SELECT 
         c.course_code, 
@@ -310,7 +321,15 @@ app.get('/api/course/:courseCode', async (req, res) => {
         lo.lab_process_date as process_date,
         lo.lab_offering_id as offering_id,
         'LAB' as offering_type,
-        AVG(qr.median) as average_median
+        ARRAY_AGG(jsonb_build_object(
+          'question_text', qt.question_text,
+          'strongly_disagree', qr.strongly_disagree,
+          'disagree', qr.disagree,
+          'neither', qr.neither,
+          'agree', qr.agree,
+          'strongly_agree', qr.strongly_agree,
+          'median', qr.median
+        )) AS questions
       FROM 
         courses c
       JOIN 
@@ -321,6 +340,8 @@ app.get('/api/course/:courseCode', async (req, res) => {
         departments d ON i.department_id = d.department_id
       LEFT JOIN 
         question_responses qr ON lo.lab_offering_id = qr.lab_offering_id
+      LEFT JOIN 
+        question_templates qt ON qr.question_id = qt.question_id
       WHERE 
         c.course_code = $1
       GROUP BY 
