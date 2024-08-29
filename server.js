@@ -172,82 +172,8 @@ async function processUpload(client, data) {
   }
 }
 
-// New retrieval endpoint for searching by course code or professor name
-app.get('/api/search', async (req, res) => {
-  const { query } = req.query;
-  const client = await pool.connect();
-
-  try {
-    const searchPattern = `%${query}%`;
-
-    // Queries to fetch matching courses and professors
-    const courseQuery = `
-      SELECT course_code, course_name
-      FROM courses
-      WHERE course_code ILIKE $1 OR course_name ILIKE $1
-      LIMIT 10
-    `;
-
-    const professorQuery = `
-      SELECT i.first_name, i.last_name, d.department_name
-      FROM instructors i
-      JOIN departments d ON i.department_id = d.department_id
-      WHERE i.first_name ILIKE $1 OR i.last_name ILIKE $1 OR CONCAT(i.first_name, ' ', i.last_name) ILIKE $1
-      LIMIT 10
-    `;
-
-    const [courseResult, professorResult] = await Promise.all([
-      client.query(courseQuery, [searchPattern]),
-      client.query(professorQuery, [searchPattern])
-    ]);
-
-    res.json({
-      courses: courseResult.rows,
-      professors: professorResult.rows
-    });
-  } catch (error) {
-    console.error('Error fetching data:', error);
-    res.status(500).json({ error: 'An error occurred while fetching data.' });
-  } finally {
-    client.release();
-  }
-});
-
-// Retrieve all courses and professors
-app.get('/api/all-data', async (req, res) => {
-  const client = await pool.connect();
-
-  try {
-    // Fetch all courses
-    const coursesQuery = `
-      SELECT course_code, course_name
-      FROM courses
-    `;
-    const coursesResult = await client.query(coursesQuery);
-
-    // Fetch all professors
-    const professorsQuery = `
-      SELECT i.first_name, i.last_name, d.department_name
-      FROM instructors i
-      JOIN departments d ON i.department_id = d.department_id
-    `;
-    const professorsResult = await client.query(professorsQuery);
-
-    res.json({
-      courses: coursesResult.rows,
-      professors: professorsResult.rows
-    });
-  } catch (error) {
-    console.error('Error fetching data:', error);
-    res.status(500).json({ error: 'An error occurred while fetching data.' });
-  } finally {
-    client.release();
-  }
-});
-
-// Course details endpoint
-// Course details endpoint
-app.get('/api/course/:courseCode', async (req, res) => {
+// Endpoint to get only sections
+app.get('/api/course/:courseCode/sections', async (req, res) => {
   const { courseCode } = req.params;
   const client = await pool.connect();
 
@@ -284,7 +210,7 @@ app.get('/api/course/:courseCode', async (req, res) => {
           'disagree', qr.disagree,
           'neither', qr.neither,
           'agree', qr.agree,
-          'strongly_agree', qr.strongly_agree,
+                    'strongly_agree', qr.strongly_agree,
           'median', qr.median
         )) AS questions
       FROM 
@@ -316,7 +242,30 @@ app.get('/api/course/:courseCode', async (req, res) => {
       ORDER BY 
         co.academic_year DESC, co.section ASC
     `;
-    
+
+    const sectionsResult = await client.query(sectionsQuery, [courseCode]);
+
+    const courseData = {
+      courseTitle: courseTitle,  // Add courseTitle to the response
+      sections: sectionsResult.rows,
+    };
+
+    // Return only sections data
+    res.json(courseData);
+  } catch (error) {
+    console.error('Error fetching course sections:', error);
+    res.status(500).json({ error: 'An error occurred while fetching course sections.' });
+  } finally {
+    client.release();
+  }
+});
+
+// Endpoint to get only labs
+app.get('/api/course/:courseCode/labs', async (req, res) => {
+  const { courseCode } = req.params;
+  const client = await pool.connect();
+
+  try {
     // Query to fetch lab offerings with questions
     const labsQuery = `
       SELECT 
@@ -371,22 +320,17 @@ app.get('/api/course/:courseCode', async (req, res) => {
         lo.academic_year DESC, lo.lab_section ASC
     `;
 
-    const [sectionsResult, labsResult] = await Promise.all([
-      client.query(sectionsQuery, [courseCode]),
-      client.query(labsQuery, [courseCode])
-    ]);
+    const labsResult = await client.query(labsQuery, [courseCode]);
 
     const courseData = {
-      courseTitle: courseTitle,  // Add courseTitle to the response
-      sections: sectionsResult.rows,
       labs: labsResult.rows,
     };
 
-    // Return both sections and labs data
+    // Return only labs data
     res.json(courseData);
   } catch (error) {
-    console.error('Error fetching course details:', error);
-    res.status(500).json({ error: 'An error occurred while fetching course details.' });
+    console.error('Error fetching course labs:', error);
+    res.status(500).json({ error: 'An error occurred while fetching course labs.' });
   } finally {
     client.release();
   }
