@@ -246,7 +246,7 @@ app.get('/api/all-data', async (req, res) => {
 });
 
 // Course details endpoint
-// Course details endpoint
+// Course details endpoint (lectures only)
 app.get('/api/course/:courseCode', async (req, res) => {
   const { courseCode } = req.params;
   const client = await pool.connect();
@@ -316,7 +316,29 @@ app.get('/api/course/:courseCode', async (req, res) => {
       ORDER BY 
         co.academic_year DESC, co.section ASC
     `;
-    
+
+    const sectionsResult = await client.query(sectionsQuery, [courseCode]);
+
+    const courseData = {
+      courseTitle: courseTitle,
+      sections: sectionsResult.rows,
+    };
+
+    res.json(courseData);
+  } catch (error) {
+    console.error('Error fetching course details:', error);
+    res.status(500).json({ error: 'An error occurred while fetching course details.' });
+  } finally {
+    client.release();
+  }
+});
+
+// New endpoint for fetching lab data
+app.get('/api/course/:courseCode/labs', async (req, res) => {
+  const { courseCode } = req.params;
+  const client = await pool.connect();
+
+  try {
     // Query to fetch lab offerings with questions
     const labsQuery = `
       SELECT 
@@ -371,22 +393,12 @@ app.get('/api/course/:courseCode', async (req, res) => {
         lo.academic_year DESC, lo.lab_section ASC
     `;
 
-    const [sectionsResult, labsResult] = await Promise.all([
-      client.query(sectionsQuery, [courseCode]),
-      client.query(labsQuery, [courseCode])
-    ]);
+    const labsResult = await client.query(labsQuery, [courseCode]);
 
-    const courseData = {
-      courseTitle: courseTitle,  // Add courseTitle to the response
-      sections: sectionsResult.rows,
-      labs: labsResult.rows,
-    };
-
-    // Return both sections and labs data
-    res.json(courseData);
+    res.json({ labs: labsResult.rows });
   } catch (error) {
-    console.error('Error fetching course details:', error);
-    res.status(500).json({ error: 'An error occurred while fetching course details.' });
+    console.error('Error fetching lab details:', error);
+    res.status(500).json({ error: 'An error occurred while fetching lab details.' });
   } finally {
     client.release();
   }
