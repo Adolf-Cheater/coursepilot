@@ -417,8 +417,8 @@ app.get('/api/course/:courseCode/gpas', async (req, res) => {
     const [department, coursenumber] = courseCode.split(' ');
 
     // Debugging: Log the received course code
-    console.log('Received courseCode:', courseCode);
-    console.log('Parsed Department:', department, 'Course Number:', coursenumber);
+    //console.log('Received courseCode:', courseCode);
+    //console.log('Parsed Department:', department, 'Course Number:', coursenumber);
 
     // Corrected Query to match department + whitespace + coursenumber in gpadb
     const gpaQuery = `
@@ -431,15 +431,15 @@ app.get('/api/course/:courseCode/gpas', async (req, res) => {
       WHERE department = $1 AND coursenumber = $2
     `;
 
-    console.log('Executing SQL Query:', gpaQuery, 'with values:', [department, coursenumber]);
+    //console.log('Executing SQL Query:', gpaQuery, 'with values:', [department, coursenumber]);
 
     const result = await client.query(gpaQuery, [department, coursenumber]);
 
     if (result.rows.length > 0) {
-      console.log('GPA Data Found:', result.rows);  // Debugging log
+      //console.log('GPA Data Found:', result.rows);  // Debugging log
       res.json(result.rows);
     } else {
-      console.log('No GPA data found for this course.');
+      //console.log('No GPA data found for this course.');
       res.status(404).json({ message: 'No GPA data found for this course.' });
     }
   } catch (error) {
