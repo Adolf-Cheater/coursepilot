@@ -409,14 +409,13 @@ app.get('/api/course/:courseCode/labs', async (req, res) => {
 
 // New endpoint to fetch GPA data for a specific course code
 app.get('/api/course/:courseCode/gpas', async (req, res) => {
-  const { courseCode } = req.params;
+  const { courseCode } = req.params;  // The full course code like 'CMPUT 367'
   const client = await pool.connect();
 
   try {
-    // Split course code to extract department and course number
-    const [department, coursenumber] = courseCode.split(' ');
+    console.log(`Received courseCode: ${courseCode}`);  // Debug log
 
-    // Query to match department + whitespace + coursenumber in gpadb
+    // Query to match the full course_code in gpadb
     const gpaQuery = `
       SELECT 
         professornames, 
@@ -424,14 +423,19 @@ app.get('/api/course/:courseCode/gpas', async (req, res) => {
         section, 
         gpa 
       FROM gpadb 
-      WHERE department = $1 AND coursenumber = $2
+      WHERE course_code = $1
     `;
 
-    const result = await client.query(gpaQuery, [department, coursenumber]);
+    console.log(`Executing SQL Query: ${gpaQuery} with value: [${courseCode}]`);  // Debug log
+
+    const result = await client.query(gpaQuery, [courseCode]);
+
+    console.log(`Query Result: `, result.rows);  // Debug log
 
     if (result.rows.length > 0) {
       res.json(result.rows);
     } else {
+      console.log('No GPA data found for this course.');  // Debug log
       res.status(404).json({ message: 'No GPA data found for this course.' });
     }
   } catch (error) {
