@@ -245,23 +245,24 @@ app.get('/api/all-data', async (req, res) => {
   }
 });
 
-// Course details endpoint
+// Course details endpoint (lectures only)
 // Course details endpoint (lectures only)
 app.get('/api/course/:courseCode', async (req, res) => {
   const { courseCode } = req.params;
   const client = await pool.connect();
 
   try {
-    // Fetch course title from coursesdb if course_code matches
-    const courseTitleQuery = `
-      SELECT course_title
+    // Fetch course title, units, and description from coursesdb if course_code matches
+    const courseDetailsQuery = `
+      SELECT course_title, units, course_description
       FROM coursesdb
       WHERE CONCAT(course_letter, ' ', course_number) = $1
       LIMIT 1
     `;
-    const courseTitleResult = await client.query(courseTitleQuery, [courseCode]);
+    const courseDetailsResult = await client.query(courseDetailsQuery, [courseCode]);
 
-    const courseTitle = courseTitleResult.rows[0]?.course_title || null;
+    const courseDetails = courseDetailsResult.rows[0] || {};
+    const { course_title, units, course_description } = courseDetails;
 
     // Query to fetch lecture offerings with questions
     const sectionsQuery = `
@@ -320,7 +321,9 @@ app.get('/api/course/:courseCode', async (req, res) => {
     const sectionsResult = await client.query(sectionsQuery, [courseCode]);
 
     const courseData = {
-      courseTitle: courseTitle,
+      courseTitle: course_title || 'N/A',
+      units: units || 'N/A',
+      courseDescription: course_description || 'N/A',
       sections: sectionsResult.rows,
     };
 
