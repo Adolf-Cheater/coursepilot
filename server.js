@@ -409,13 +409,17 @@ app.get('/api/course/:courseCode/labs', async (req, res) => {
 
 // New endpoint to fetch GPA data for a specific course code
 app.get('/api/course/:courseCode/gpas', async (req, res) => {
-  const { courseCode } = req.params;  // The full course code like 'CMPUT 367'
+  const { courseCode } = req.params;
   const client = await pool.connect();
 
   try {
-    console.log(`Received courseCode: ${courseCode}`);  // Debug log
+    // Split course code to extract department and course number
+    const [department, coursenumber] = courseCode.split(' ');
 
-    // Query to match the full course_code in gpadb
+    // Debugging: Log the department and course number to see if they are parsed correctly
+    console.log('Fetching GPA for department:', department, 'Course number:', coursenumber);
+
+    // Corrected Query to match department + whitespace + coursenumber in gpadb
     const gpaQuery = `
       SELECT 
         professornames, 
@@ -423,23 +427,22 @@ app.get('/api/course/:courseCode/gpas', async (req, res) => {
         section, 
         gpa 
       FROM gpadb 
-      WHERE course_code = $1
+      WHERE department = $1 AND coursenumber = $2
     `;
 
-    console.log(`Executing SQL Query: ${gpaQuery} with value: [${courseCode}]`);  // Debug log
+    const result = await client.query(gpaQuery, [department, coursenumber]);
 
-    const result = await client.query(gpaQuery, [courseCode]);
-
-    console.log(`Query Result: `, result.rows);  // Debug log
+    // Debugging: Log the result of the query
+    console.log('GPA Query Result:', result.rows);
 
     if (result.rows.length > 0) {
       res.json(result.rows);
     } else {
-      console.log('No GPA data found for this course.');  // Debug log
+      console.log('No GPA data found for this course.');
       res.status(404).json({ message: 'No GPA data found for this course.' });
     }
   } catch (error) {
-    console.error('Error fetching GPA data:', error);
+    console.error('Error fetching GPA data:', error.stack); // Improved error logging with stack trace
     res.status(500).json({ error: 'An error occurred while fetching GPA data.' });
   } finally {
     client.release();
