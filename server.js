@@ -407,6 +407,41 @@ app.get('/api/course/:courseCode/labs', async (req, res) => {
   }
 });
 
+// New endpoint to fetch GPA data for a specific course code
+app.get('/api/course/:courseCode/gpas', async (req, res) => {
+  const { courseCode } = req.params;
+  const client = await pool.connect();
+
+  try {
+    // Split course code to extract department and course number
+    const [department, courseNumber] = courseCode.split(' ');
+
+    // Query to match department + whitespace + courseNumber in gpadb
+    const gpaQuery = `
+      SELECT 
+        professorNames, 
+        term, 
+        section, 
+        gpa 
+      FROM gpadb 
+      WHERE department = $1 AND courseNumber = $2
+    `;
+
+    const result = await client.query(gpaQuery, [department, courseNumber]);
+
+    if (result.rows.length > 0) {
+      res.json(result.rows);
+    } else {
+      res.status(404).json({ message: 'No GPA data found for this course.' });
+    }
+  } catch (error) {
+    console.error('Error fetching GPA data:', error);
+    res.status(500).json({ error: 'An error occurred while fetching GPA data.' });
+  } finally {
+    client.release();
+  }
+});
+
 // Start the server
 const PORT = process.env.PORT || 8000;
 app.listen(PORT, () => {
