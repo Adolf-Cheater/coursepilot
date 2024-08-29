@@ -419,7 +419,7 @@ app.get('/api/course/:courseCode/gpas', async (req, res) => {
     // Query to match department + whitespace + courseNumber in gpadb
     const gpaQuery = `
       SELECT 
-        professorNames, 
+        professornames, 
         term, 
         section, 
         gpa 
