@@ -252,6 +252,17 @@ app.get('/api/course/:courseCode', async (req, res) => {
   const client = await pool.connect();
 
   try {
+    // Fetch course title from coursesdb if course_code matches
+    const courseTitleQuery = `
+      SELECT course_title
+      FROM coursesdb
+      WHERE CONCAT(course_letter, ' ', course_number) = $1
+      LIMIT 1
+    `;
+    const courseTitleResult = await client.query(courseTitleQuery, [courseCode]);
+
+    const courseTitle = courseTitleResult.rows[0]?.course_title || null;
+
     // Query to fetch lecture offerings with questions
     const sectionsQuery = `
       SELECT 
@@ -366,6 +377,7 @@ app.get('/api/course/:courseCode', async (req, res) => {
     ]);
 
     const courseData = {
+      courseTitle: courseTitle,  // Add courseTitle to the response
       sections: sectionsResult.rows,
       labs: labsResult.rows,
     };
