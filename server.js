@@ -416,7 +416,7 @@ app.get('/api/course/:courseCode/gpas', async (req, res) => {
     // Split course code to extract department and course number
     const [department, coursenumber] = courseCode.split(' ');
 
-    // Query to match department + whitespace + courseNumber in gpadb
+    // Query to match department + whitespace + coursenumber in gpadb
     const gpaQuery = `
       SELECT 
         professornames, 
@@ -424,7 +424,7 @@ app.get('/api/course/:courseCode/gpas', async (req, res) => {
         section, 
         gpa 
       FROM gpadb 
-      WHERE department = $1 AND courseNumber = $2
+      WHERE department = $1 AND coursenumber = $2
     `;
 
     const result = await client.query(gpaQuery, [department, coursenumber]);
