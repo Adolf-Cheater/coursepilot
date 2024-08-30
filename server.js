@@ -451,10 +451,9 @@ app.get('/api/course/:courseCode/gpas', async (req, res) => {
 });
 
 // Endpoint for fetching professor details
-// Enhanced logs in the backend endpoint for fetching professor details
 // Endpoint for fetching professor details
-app.get('/api/professor/:lastName/:firstName', async (req, res) => {
-  const { lastName, firstName } = req.params;
+app.get('/api/professor/:firstName/:lastName', async (req, res) => {
+  const { firstName, lastName } = req.params;
   const client = await pool.connect();
 
   console.log(`Fetching data for professor: ${firstName} ${lastName}`);
@@ -467,6 +466,7 @@ app.get('/api/professor/:lastName/:firstName', async (req, res) => {
         i.first_name, 
         i.last_name, 
         d.department_name,
+        d.faculty,
         c.course_code,
         c.course_name,
         co.academic_year,
@@ -475,7 +475,7 @@ app.get('/api/professor/:lastName/:firstName', async (req, res) => {
         co.class_size,
         co.response_count,
         co.process_date,
-        'LEC' as offering_type,
+        COALESCE(co.course_type, 'LAB') as offering_type,
         ARRAY_AGG(jsonb_build_object(
           'question_text', qt.question_text,
           'strongly_disagree', qr.strongly_disagree,
@@ -490,7 +490,16 @@ app.get('/api/professor/:lastName/:firstName', async (req, res) => {
       JOIN 
         departments d ON i.department_id = d.department_id
       LEFT JOIN 
-        course_offerings co ON i.instructor_id = co.instructor_id
+        (
+          SELECT * FROM course_offerings
+          UNION ALL
+          SELECT 
+            lab_offering_id as offering_id, course_id, instructor_id, 
+            academic_year, 'LAB' as course_type, lab_section as section, 
+            lab_size as class_size, lab_response_count as response_count, 
+            lab_process_date as process_date
+          FROM lab_offerings
+        ) co ON i.instructor_id = co.instructor_id
       LEFT JOIN 
         courses c ON co.course_id = c.course_id
       LEFT JOIN 
@@ -498,12 +507,13 @@ app.get('/api/professor/:lastName/:firstName', async (req, res) => {
       LEFT JOIN 
         question_templates qt ON qr.question_id = qt.question_id
       WHERE 
-        i.last_name ILIKE $1 AND i.first_name ILIKE $2
+        i.first_name ILIKE $1 AND i.last_name ILIKE $2
       GROUP BY 
         i.instructor_id,
         i.first_name, 
         i.last_name, 
         d.department_name,
+        d.faculty,
         c.course_code,
         c.course_name,
         co.academic_year,
@@ -517,7 +527,7 @@ app.get('/api/professor/:lastName/:firstName', async (req, res) => {
     `;
 
     console.log('Executing professor query...');
-    const professorResult = await client.query(professorQuery, [lastName, firstName]);
+    const professorResult = await client.query(professorQuery, [firstName, lastName]);
     console.log(`Found ${professorResult.rows.length} rows for professor`);
 
     if (professorResult.rows.length === 0) {
@@ -530,6 +540,7 @@ app.get('/api/professor/:lastName/:firstName', async (req, res) => {
       firstName: professorResult.rows[0].first_name,
       lastName: professorResult.rows[0].last_name,
       department: professorResult.rows[0].department_name,
+      faculty: professorResult.rows[0].faculty,
       courses: professorResult.rows.map(row => ({
         courseCode: row.course_code,
         courseName: row.course_name,
