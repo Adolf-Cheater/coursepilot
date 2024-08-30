@@ -450,6 +450,76 @@ app.get('/api/course/:courseCode/gpas', async (req, res) => {
   }
 });
 
+// Endpoint for fetching professor details
+app.get('/api/professor/:lastName-:firstName', async (req, res) => {
+  const { firstName, lastName } = req.params;
+  const client = await pool.connect();
+
+  try {
+    // Query to fetch professor details
+    const professorDetailsQuery = `
+      SELECT 
+        i.first_name, 
+        i.last_name, 
+        d.department_name, 
+        c.course_code, 
+        c.course_name, 
+        co.academic_year, 
+        co.section, 
+        co.class_size, 
+        co.response_count,
+        ARRAY_AGG(jsonb_build_object(
+          'question_text', qt.question_text,
+          'strongly_disagree', qr.strongly_disagree,
+          'disagree', qr.disagree,
+          'neither', qr.neither,
+          'agree', qr.agree,
+          'strongly_agree', qr.strongly_agree,
+          'median', qr.median
+        )) AS questions
+      FROM 
+        instructors i
+      JOIN 
+        departments d ON i.department_id = d.department_id
+      LEFT JOIN 
+        course_offerings co ON i.instructor_id = co.instructor_id
+      LEFT JOIN 
+        courses c ON co.course_id = c.course_id
+      LEFT JOIN 
+        question_responses qr ON co.offering_id = qr.offering_id
+      LEFT JOIN 
+        question_templates qt ON qr.question_id = qt.question_id
+      WHERE 
+        i.first_name ILIKE $1 AND i.last_name ILIKE $2
+      GROUP BY 
+        i.first_name, 
+        i.last_name, 
+        d.department_name, 
+        c.course_code, 
+        c.course_name, 
+        co.academic_year, 
+        co.section, 
+        co.class_size, 
+        co.response_count
+      ORDER BY 
+        co.academic_year DESC, co.section ASC
+    `;
+
+    const professorDetailsResult = await client.query(professorDetailsQuery, [firstName, lastName]);
+
+    if (professorDetailsResult.rows.length > 0) {
+      res.json(professorDetailsResult.rows);
+    } else {
+      res.status(404).json({ message: 'No data found for this professor.' });
+    }
+  } catch (error) {
+    console.error('Error fetching professor details:', error);
+    res.status(500).json({ error: 'An error occurred while fetching professor details.' });
+  } finally {
+    client.release();
+  }
+});
+
 // Start the server
 const PORT = process.env.PORT || 8000;
 app.listen(PORT, () => {
