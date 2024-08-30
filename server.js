@@ -452,26 +452,30 @@ app.get('/api/course/:courseCode/gpas', async (req, res) => {
 
 // Endpoint for fetching professor details
 // Enhanced logs in the backend endpoint for fetching professor details
-
-app.get('/api/professor/:lastName-:firstName', async (req, res) => {
-  const { firstName, lastName } = req.params; // Correctly extract the parameters
-  console.log(`Received request to fetch professor details for: ${lastName}, ${firstName}`);  // Log received parameters
-
+// Endpoint for fetching professor details
+app.get('/api/professor/:lastName/:firstName', async (req, res) => {
+  const { lastName, firstName } = req.params;
   const client = await pool.connect();
 
+  console.log(`Fetching data for professor: ${firstName} ${lastName}`);
+
   try {
-    // Query to fetch professor details
-    const professorDetailsQuery = `
+    // Query to fetch professor details and their course offerings
+    const professorQuery = `
       SELECT 
+        i.instructor_id,
         i.first_name, 
         i.last_name, 
-        d.department_name, 
-        c.course_code, 
-        c.course_name, 
-        co.academic_year, 
-        co.section, 
-        co.class_size, 
+        d.department_name,
+        c.course_code,
+        c.course_name,
+        co.academic_year,
+        co.course_type,
+        co.section,
+        co.class_size,
         co.response_count,
+        co.process_date,
+        'LEC' as offering_type,
         ARRAY_AGG(jsonb_build_object(
           'question_text', qt.question_text,
           'strongly_disagree', qr.strongly_disagree,
@@ -494,41 +498,80 @@ app.get('/api/professor/:lastName-:firstName', async (req, res) => {
       LEFT JOIN 
         question_templates qt ON qr.question_id = qt.question_id
       WHERE 
-        i.first_name ILIKE $1 AND i.last_name ILIKE $2
+        i.last_name ILIKE $1 AND i.first_name ILIKE $2
       GROUP BY 
+        i.instructor_id,
         i.first_name, 
         i.last_name, 
-        d.department_name, 
-        c.course_code, 
-        c.course_name, 
-        co.academic_year, 
-        co.section, 
-        co.class_size, 
-        co.response_count
+        d.department_name,
+        c.course_code,
+        c.course_name,
+        co.academic_year,
+        co.course_type,
+        co.section,
+        co.class_size,
+        co.response_count,
+        co.process_date
       ORDER BY 
-        co.academic_year DESC, co.section ASC
+        co.academic_year DESC, c.course_code ASC
     `;
 
-    console.log('Executing SQL Query:', professorDetailsQuery);  // Log the SQL query
-    console.log('With values:', [firstName, lastName]);  // Log the values being used in the query
+    console.log('Executing professor query...');
+    const professorResult = await client.query(professorQuery, [lastName, firstName]);
+    console.log(`Found ${professorResult.rows.length} rows for professor`);
 
-    const professorDetailsResult = await client.query(professorDetailsQuery, [firstName, lastName]);
-
-    if (professorDetailsResult.rows.length > 0) {
-      console.log('Professor data fetched successfully:', professorDetailsResult.rows);  // Log the fetched data
-      res.json(professorDetailsResult.rows);
-    } else {
-      console.log('No data found for this professor.');  // Log when no data is found
-      res.status(404).json({ message: 'No data found for this professor.' });
+    if (professorResult.rows.length === 0) {
+      console.log('No data found for this professor');
+      return res.status(404).json({ message: 'Professor not found' });
     }
+
+    // Organize the data
+    const professorData = {
+      firstName: professorResult.rows[0].first_name,
+      lastName: professorResult.rows[0].last_name,
+      department: professorResult.rows[0].department_name,
+      courses: professorResult.rows.map(row => ({
+        courseCode: row.course_code,
+        courseName: row.course_name,
+        academicYear: row.academic_year,
+        courseType: row.course_type,
+        section: row.section,
+        classSize: row.class_size,
+        responseCount: row.response_count,
+        processDate: row.process_date,
+        offeringType: row.offering_type,
+        questions: row.questions
+      })).filter(course => course.courseCode !== null) // Filter out null courses
+    };
+
+    // Fetch GPA data for this professor
+    const gpaQuery = `
+      SELECT 
+        department, 
+        coursenumber, 
+        term, 
+        section, 
+        gpa 
+      FROM gpadb 
+      WHERE LOWER(professornames) LIKE LOWER($1)
+      ORDER BY term DESC, coursenumber ASC
+    `;
+
+    console.log('Executing GPA query...');
+    const gpaResult = await client.query(gpaQuery, [`%${lastName}, ${firstName}%`]);
+    console.log(`Found ${gpaResult.rows.length} GPA entries for professor`);
+
+    professorData.gpaData = gpaResult.rows;
+
+    res.json(professorData);
   } catch (error) {
-    console.error('Error fetching professor details:', error);  // Log errors
+    console.error('Error fetching professor details:', error);
     res.status(500).json({ error: 'An error occurred while fetching professor details.' });
   } finally {
     client.release();
-    console.log('Database connection released.');  // Log connection release
   }
 });
+
 
 // Start the server
 const PORT = process.env.PORT || 8000;
