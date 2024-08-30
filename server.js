@@ -451,8 +451,13 @@ app.get('/api/course/:courseCode/gpas', async (req, res) => {
 });
 
 // Endpoint for fetching professor details
+// Existing imports and configurations...
+
+// Retrieve professor details by lastName and firstName
 app.get('/api/professor/:lastName-:firstName', async (req, res) => {
-  const { firstName, lastName } = req.params;
+  const { firstName, lastName } = req.params; // Correctly get the parameters
+  console.log(`Received request to fetch professor details for: ${lastName}, ${firstName}`);  // Log received parameters
+
   const client = await pool.connect();
 
   try {
@@ -505,18 +510,24 @@ app.get('/api/professor/:lastName-:firstName', async (req, res) => {
         co.academic_year DESC, co.section ASC
     `;
 
+    console.log('Executing SQL Query:', professorDetailsQuery);  // Log the SQL query
+    console.log('With values:', [firstName, lastName]);  // Log the values being used in the query
+
     const professorDetailsResult = await client.query(professorDetailsQuery, [firstName, lastName]);
 
     if (professorDetailsResult.rows.length > 0) {
+      console.log('Professor data fetched successfully:', professorDetailsResult.rows);  // Log the fetched data
       res.json(professorDetailsResult.rows);
     } else {
+      console.log('No data found for this professor.');  // Log when no data is found
       res.status(404).json({ message: 'No data found for this professor.' });
     }
   } catch (error) {
-    console.error('Error fetching professor details:', error);
+    console.error('Error fetching professor details:', error);  // Log errors
     res.status(500).json({ error: 'An error occurred while fetching professor details.' });
   } finally {
     client.release();
+    console.log('Database connection released.');  // Log connection release
   }
 });
 
