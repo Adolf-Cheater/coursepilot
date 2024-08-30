@@ -451,11 +451,10 @@ app.get('/api/course/:courseCode/gpas', async (req, res) => {
 });
 
 // Endpoint for fetching professor details
-// Existing imports and configurations...
+// Enhanced logs in the backend endpoint for fetching professor details
 
-// Retrieve professor details by lastName and firstName
 app.get('/api/professor/:lastName-:firstName', async (req, res) => {
-  const { firstName, lastName } = req.params; // Correctly get the parameters
+  const { firstName, lastName } = req.params; // Correctly extract the parameters
   console.log(`Received request to fetch professor details for: ${lastName}, ${firstName}`);  // Log received parameters
 
   const client = await pool.connect();
