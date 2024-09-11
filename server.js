@@ -246,20 +246,22 @@ app.get('/api/all-data', async (req, res) => {
 });
 
 // Course details endpoint (lectures only)
-// Course details endpoint (lectures only)
 app.get('/api/course/:courseCode', async (req, res) => {
   const { courseCode } = req.params;
   const client = await pool.connect();
 
   try {
-    // Fetch course title, units, and description from coursesdb if course_code matches
+    // Normalize the incoming course code by removing spaces for comparison
+    const normalizedCourseCode = courseCode.replace(/\s+/g, '').toUpperCase();
+
+    // Fetch course title, units, and description from coursesdb if normalized course_code matches
     const courseDetailsQuery = `
       SELECT course_title, units, course_description
       FROM coursesdb
-      WHERE CONCAT(course_letter, ' ', course_number) = $1
+      WHERE REPLACE(CONCAT(course_letter, course_number), ' ', '') ILIKE $1
       LIMIT 1
     `;
-    const courseDetailsResult = await client.query(courseDetailsQuery, [courseCode]);
+    const courseDetailsResult = await client.query(courseDetailsQuery, [normalizedCourseCode]);
 
     const courseDetails = courseDetailsResult.rows[0] || {};
     const { course_title, units, course_description } = courseDetails;
@@ -301,7 +303,7 @@ app.get('/api/course/:courseCode', async (req, res) => {
       LEFT JOIN 
         question_templates qt ON qr.question_id = qt.question_id
       WHERE 
-        c.course_code = $1 AND co.course_type = 'LEC'
+        REPLACE(c.course_code, ' ', '') = $1 AND co.course_type = 'LEC'
       GROUP BY 
         c.course_code, 
         c.course_name, 
@@ -318,7 +320,7 @@ app.get('/api/course/:courseCode', async (req, res) => {
         co.academic_year DESC, co.section ASC
     `;
 
-    const sectionsResult = await client.query(sectionsQuery, [courseCode]);
+    const sectionsResult = await client.query(sectionsQuery, [normalizedCourseCode]);
 
     const courseData = {
       courseTitle: course_title || 'N/A',
