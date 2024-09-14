@@ -180,11 +180,12 @@ app.get('/api/search', async (req, res) => {
   try {
     const searchPattern = `%${query}%`;
 
-    // Queries to fetch matching courses and professors
+    // Updated query to fetch matching courses with names from coursesdb
     const courseQuery = `
-      SELECT course_code, course_name
-      FROM courses
-      WHERE course_code ILIKE $1 OR course_name ILIKE $1
+      SELECT c.course_code, COALESCE(cdb.course_title, c.course_name) as course_name
+      FROM courses c
+      LEFT JOIN coursesdb cdb ON REPLACE(CONCAT(cdb.course_letter, cdb.course_number), ' ', '') = REPLACE(c.course_code, ' ', '')
+      WHERE c.course_code ILIKE $1 OR COALESCE(cdb.course_title, c.course_name) ILIKE $1
       LIMIT 10
     `;
 
@@ -196,10 +197,17 @@ app.get('/api/search', async (req, res) => {
       LIMIT 10
     `;
 
+    console.log('Executing course query:', courseQuery);
+    console.log('Executing professor query:', professorQuery);
+    console.log('Search pattern:', searchPattern);
+
     const [courseResult, professorResult] = await Promise.all([
       client.query(courseQuery, [searchPattern]),
       client.query(professorQuery, [searchPattern])
     ]);
+
+    console.log('Course results:', courseResult.rows);
+    console.log('Professor results:', professorResult.rows);
 
     res.json({
       courses: courseResult.rows,
