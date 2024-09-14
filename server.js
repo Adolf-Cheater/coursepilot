@@ -180,13 +180,23 @@ app.get('/api/search', async (req, res) => {
   try {
     const searchPattern = `%${query}%`;
 
-    // Updated query to fetch matching courses with names from coursesdb
+    // Optimized query to fetch matching courses with names from coursesdb
     const courseQuery = `
-      SELECT c.course_code, COALESCE(cdb.course_title, c.course_name) as course_name
-      FROM courses c
-      LEFT JOIN coursesdb cdb ON REPLACE(CONCAT(cdb.course_letter, cdb.course_number), ' ', '') = REPLACE(c.course_code, ' ', '')
-      WHERE c.course_code ILIKE $1 OR COALESCE(cdb.course_title, c.course_name) ILIKE $1
-      LIMIT 10
+      WITH matched_courses AS (
+        SELECT c.course_code, COALESCE(cdb.course_title, c.course_name) as course_name
+        FROM courses c
+        LEFT JOIN coursesdb cdb ON REPLACE(CONCAT(cdb.course_letter, cdb.course_number), ' ', '') = REPLACE(c.course_code, ' ', '')
+        WHERE c.course_code ILIKE $1 OR COALESCE(cdb.course_title, c.course_name) ILIKE $1
+        LIMIT 10
+      )
+      SELECT * FROM matched_courses
+      ORDER BY 
+        CASE 
+          WHEN course_code ILIKE $1 THEN 0
+          WHEN course_name ILIKE $1 THEN 1
+          ELSE 2
+        END,
+        course_code
     `;
 
     const professorQuery = `
@@ -194,6 +204,13 @@ app.get('/api/search', async (req, res) => {
       FROM instructors i
       JOIN departments d ON i.department_id = d.department_id
       WHERE i.first_name ILIKE $1 OR i.last_name ILIKE $1 OR CONCAT(i.first_name, ' ', i.last_name) ILIKE $1
+      ORDER BY 
+        CASE 
+          WHEN i.last_name ILIKE $1 THEN 0
+          WHEN i.first_name ILIKE $1 THEN 1
+          ELSE 2
+        END,
+        i.last_name, i.first_name
       LIMIT 10
     `;
 
