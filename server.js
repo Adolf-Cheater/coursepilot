@@ -619,23 +619,41 @@ app.get('/api/top-enrolled', async (req, res) => {
     let query;
     if (type === 'courses') {
       query = `
-        SELECT c.course_code, c.course_name, co.academic_year, SUM(co.class_size) as total_enrollment
-        FROM courses c
-        JOIN course_offerings co ON c.course_id = co.course_id
-        WHERE co.academic_year = $1
-        GROUP BY c.course_code, c.course_name, co.academic_year
+        WITH course_enrollments AS (
+          SELECT co.course_id, SUM(co.class_size) as total_enrollment
+          FROM course_offerings co
+          WHERE co.academic_year = $1
+          GROUP BY co.course_id
+        ),
+        top_courses AS (
+          SELECT c.course_code, ce.total_enrollment,
+                 COALESCE(cdb.course_title, c.course_name) as course_name
+          FROM course_enrollments ce
+          JOIN courses c ON ce.course_id = c.course_id
+          LEFT JOIN coursesdb cdb ON REPLACE(CONCAT(cdb.course_letter, cdb.course_number), ' ', '') = REPLACE(c.course_code, ' ', '')
+          ORDER BY ce.total_enrollment DESC
+          LIMIT $2
+        )
+        SELECT * FROM top_courses
         ORDER BY total_enrollment DESC
-        LIMIT $2
       `;
     } else if (type === 'instructors') {
       query = `
-        SELECT i.first_name, i.last_name, co.academic_year, SUM(co.class_size) as total_enrollment
-        FROM instructors i
-        JOIN course_offerings co ON i.instructor_id = co.instructor_id
-        WHERE co.academic_year = $1
-        GROUP BY i.first_name, i.last_name, co.academic_year
+        WITH instructor_enrollments AS (
+          SELECT co.instructor_id, SUM(co.class_size) as total_enrollment
+          FROM course_offerings co
+          WHERE co.academic_year = $1
+          GROUP BY co.instructor_id
+        ),
+        top_instructors AS (
+          SELECT i.first_name, i.last_name, ie.total_enrollment
+          FROM instructor_enrollments ie
+          JOIN instructors i ON ie.instructor_id = i.instructor_id
+          ORDER BY ie.total_enrollment DESC
+          LIMIT $2
+        )
+        SELECT * FROM top_instructors
         ORDER BY total_enrollment DESC
-        LIMIT $2
       `;
     } else {
       return res.status(400).json({ error: 'Invalid type specified' });
