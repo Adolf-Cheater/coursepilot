@@ -618,6 +618,7 @@ app.get('/api/top-enrolled', async (req, res) => {
   try {
     let query;
     if (type === 'courses') {
+      // Query for top enrolled courses
       query = `
         WITH course_enrollments AS (
           SELECT co.course_id, SUM(co.class_size) as total_enrollment
@@ -637,6 +638,7 @@ app.get('/api/top-enrolled', async (req, res) => {
         ORDER BY total_enrollment DESC
       `;
     } else if (type === 'instructors') {
+      // Query for top enrolled instructors
       query = `
         WITH instructor_enrollments AS (
           SELECT co.instructor_id, SUM(co.class_size) as total_enrollment
