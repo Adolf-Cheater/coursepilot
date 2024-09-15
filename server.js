@@ -613,6 +613,7 @@ app.get('/api/professor/:firstName/:lastName', async (req, res) => {
 
 app.get('/api/top-enrolled', async (req, res) => {
   const { type, limit } = req.query;
+  console.log(`Received request for top-enrolled data: type=${type}, limit=${limit}`);  // Debugging log
   const client = await pool.connect();
 
   try {
