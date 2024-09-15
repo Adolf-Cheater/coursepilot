@@ -478,12 +478,16 @@ app.get('/api/course/:courseCode/gpas', async (req, res) => {
 });
 
 // Endpoint for fetching professor details
-// Endpoint for fetching professor details
 app.get('/api/professor/:professorSlug', async (req, res) => {
   const { professorSlug } = req.params;
   const client = await pool.connect();
 
-  console.log(`Fetching data for professor: ${professorSlug}`);
+  console.log(`Received request for professor: ${professorSlug}`);
+
+  if (!professorSlug) {
+    console.error('Professor slug is undefined');
+    return res.status(400).json({ error: 'Invalid professor name' });
+  }
 
   try {
     // Split the professorSlug into firstName and lastName
@@ -491,12 +495,13 @@ app.get('/api/professor/:professorSlug', async (req, res) => {
     let firstName, lastName;
 
     if (parts.length === 2) {
-      // Assume it's in the format "firstname-lastname"
       [firstName, lastName] = parts;
-    } else {
-      // Handle cases with more complex names
+    } else if (parts.length > 2) {
       firstName = parts[0];
       lastName = parts.slice(1).join(' ');
+    } else {
+      console.error('Invalid professor slug format');
+      return res.status(400).json({ error: 'Invalid professor name format' });
     }
 
     // Decode URI components to handle special characters
