@@ -610,7 +610,7 @@ app.get('/api/professor/:firstName/:lastName', async (req, res) => {
   }
 });
 
-// New endpoint for fetching top enrolled courses and instructors
+
 app.get('/api/top-enrolled', async (req, res) => {
   const { type, limit, year } = req.query;
   const client = await pool.connect();
@@ -641,7 +641,7 @@ app.get('/api/top-enrolled', async (req, res) => {
       return res.status(400).json({ error: 'Invalid type specified' });
     }
 
-    const result = await client.query(query, [year, limit]);
+    const result = await client.query(query, [year, parseInt(limit)]);
     res.json(result.rows);
   } catch (error) {
     console.error('Error fetching top enrolled data:', error);
