@@ -612,7 +612,7 @@ app.get('/api/professor/:firstName/:lastName', async (req, res) => {
 
 
 app.get('/api/top-enrolled', async (req, res) => {
-  const { type, limit, year } = req.query;
+  const { type, limit } = req.query;
   const client = await pool.connect();
 
   try {
@@ -622,7 +622,6 @@ app.get('/api/top-enrolled', async (req, res) => {
         WITH course_enrollments AS (
           SELECT co.course_id, SUM(co.class_size) as total_enrollment
           FROM course_offerings co
-          WHERE co.academic_year = $1
           GROUP BY co.course_id
         ),
         top_courses AS (
@@ -632,7 +631,7 @@ app.get('/api/top-enrolled', async (req, res) => {
           JOIN courses c ON ce.course_id = c.course_id
           LEFT JOIN coursesdb cdb ON REPLACE(CONCAT(cdb.course_letter, cdb.course_number), ' ', '') = REPLACE(c.course_code, ' ', '')
           ORDER BY ce.total_enrollment DESC
-          LIMIT $2
+          LIMIT $1
         )
         SELECT * FROM top_courses
         ORDER BY total_enrollment DESC
@@ -642,7 +641,6 @@ app.get('/api/top-enrolled', async (req, res) => {
         WITH instructor_enrollments AS (
           SELECT co.instructor_id, SUM(co.class_size) as total_enrollment
           FROM course_offerings co
-          WHERE co.academic_year = $1
           GROUP BY co.instructor_id
         ),
         top_instructors AS (
@@ -650,7 +648,7 @@ app.get('/api/top-enrolled', async (req, res) => {
           FROM instructor_enrollments ie
           JOIN instructors i ON ie.instructor_id = i.instructor_id
           ORDER BY ie.total_enrollment DESC
-          LIMIT $2
+          LIMIT $1
         )
         SELECT * FROM top_instructors
         ORDER BY total_enrollment DESC
@@ -659,7 +657,7 @@ app.get('/api/top-enrolled', async (req, res) => {
       return res.status(400).json({ error: 'Invalid type specified' });
     }
 
-    const result = await client.query(query, [year, parseInt(limit)]);
+    const result = await client.query(query, [parseInt(limit)]);
     res.json(result.rows);
   } catch (error) {
     console.error('Error fetching top enrolled data:', error);
