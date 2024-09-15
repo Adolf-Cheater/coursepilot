@@ -479,13 +479,32 @@ app.get('/api/course/:courseCode/gpas', async (req, res) => {
 
 // Endpoint for fetching professor details
 // Endpoint for fetching professor details
-app.get('/api/professor/:firstName/:lastName', async (req, res) => {
-  const { firstName, lastName } = req.params;
+app.get('/api/professor/:professorSlug', async (req, res) => {
+  const { professorSlug } = req.params;
   const client = await pool.connect();
 
-  console.log(`Fetching data for professor: ${firstName} ${lastName}`);
+  console.log(`Fetching data for professor: ${professorSlug}`);
 
   try {
+    // Split the professorSlug into firstName and lastName
+    const parts = professorSlug.split('-');
+    let firstName, lastName;
+
+    if (parts.length === 2) {
+      // Assume it's in the format "firstname-lastname"
+      [firstName, lastName] = parts;
+    } else {
+      // Handle cases with more complex names
+      firstName = parts[0];
+      lastName = parts.slice(1).join(' ');
+    }
+
+    // Decode URI components to handle special characters
+    firstName = decodeURIComponent(firstName);
+    lastName = decodeURIComponent(lastName);
+
+    console.log(`Parsed name: ${firstName} ${lastName}`);
+
     // Query to fetch professor details and their course offerings
     const professorQuery = `
       SELECT 
@@ -609,7 +628,6 @@ app.get('/api/professor/:firstName/:lastName', async (req, res) => {
     client.release();
   }
 });
-
 
 app.get('/api/top-enrolled', async (req, res) => {
   const { type, limit, year } = req.query; // Extract query parameters, including year
