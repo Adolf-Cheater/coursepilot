@@ -613,7 +613,6 @@ app.get('/api/professor/:firstName/:lastName', async (req, res) => {
 
 app.get('/api/top-enrolled', async (req, res) => {
   const { type, limit, year } = req.query; // Extract query parameters, including year
-  console.log(`Received request for top-enrolled data: type=${type}, limit=${limit}, year=${year}`);  // Debugging log
   const client = await pool.connect();
 
   try {
@@ -624,7 +623,7 @@ app.get('/api/top-enrolled', async (req, res) => {
         WITH course_enrollments AS (
           SELECT co.course_id, SUM(co.class_size) as total_enrollment
           FROM course_offerings co
-          ${year ? `WHERE co.academic_year = $2` : ''}  -- Conditional filtering by year
+          ${year ? `WHERE SUBSTRING(co.academic_year FROM '[0-9]{4}$') = $2` : ''}  -- Extract the year from academic_year and filter
           GROUP BY co.course_id
         ),
         top_courses AS (
@@ -645,7 +644,7 @@ app.get('/api/top-enrolled', async (req, res) => {
         WITH instructor_enrollments AS (
           SELECT co.instructor_id, SUM(co.class_size) as total_enrollment
           FROM course_offerings co
-          ${year ? `WHERE co.academic_year = $2` : ''}  -- Conditional filtering by year
+          ${year ? `WHERE SUBSTRING(co.academic_year FROM '[0-9]{4}$') = $2` : ''}  -- Extract the year from academic_year and filter
           GROUP BY co.instructor_id
         ),
         top_instructors AS (
@@ -659,18 +658,13 @@ app.get('/api/top-enrolled', async (req, res) => {
         ORDER BY total_enrollment DESC
       `;
     } else {
-      console.error('Invalid type parameter:', type);
       return res.status(400).json({ error: 'Invalid type specified' }); // Return early for invalid type
     }
-
-    console.log('Executing query:', query); // Debugging log for the query
 
     // Conditionally add year parameter to the query execution
     const result = year 
       ? await client.query(query, [parseInt(limit), year]) 
       : await client.query(query, [parseInt(limit)]); // Ensure limit is passed as an integer
-
-    console.log('Query result:', result.rows); // Debugging log for the query result
 
     res.json(result.rows); // Send back the JSON result
   } catch (error) {
