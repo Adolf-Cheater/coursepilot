@@ -612,7 +612,7 @@ app.get('/api/professor/:firstName/:lastName', async (req, res) => {
 
 
 app.get('/api/top-enrolled', async (req, res) => {
-  const { type, limit } = req.query;
+  const { type, limit } = req.query; // Extract query parameters
   console.log(`Received request for top-enrolled data: type=${type}, limit=${limit}`);  // Debugging log
   const client = await pool.connect();
 
@@ -657,16 +657,20 @@ app.get('/api/top-enrolled', async (req, res) => {
         ORDER BY total_enrollment DESC
       `;
     } else {
-      return res.status(400).json({ error: 'Invalid type specified' });
+      console.error('Invalid type parameter:', type);
+      return res.status(400).json({ error: 'Invalid type specified' }); // Return early for invalid type
     }
 
-    const result = await client.query(query, [parseInt(limit)]);
-    res.json(result.rows);
+    console.log('Executing query:', query); // Debugging log for the query
+    const result = await client.query(query, [parseInt(limit)]); // Ensure limit is passed as an integer
+    console.log('Query result:', result.rows); // Debugging log for the query result
+
+    res.json(result.rows); // Send back the JSON result
   } catch (error) {
-    console.error('Error fetching top enrolled data:', error);
+    console.error('Error fetching top enrolled data:', error); // Detailed error logging
     res.status(500).json({ error: 'An error occurred while fetching top enrolled data.' });
   } finally {
-    client.release();
+    client.release(); // Ensure client is released
   }
 });
 
