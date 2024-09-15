@@ -610,6 +610,47 @@ app.get('/api/professor/:firstName/:lastName', async (req, res) => {
   }
 });
 
+// New endpoint for fetching top enrolled courses and instructors
+app.get('/api/top-enrolled', async (req, res) => {
+  const { type, limit, year } = req.query;
+  const client = await pool.connect();
+
+  try {
+    let query;
+    if (type === 'courses') {
+      query = `
+        SELECT c.course_code, c.course_name, co.academic_year, SUM(co.class_size) as total_enrollment
+        FROM courses c
+        JOIN course_offerings co ON c.course_id = co.course_id
+        WHERE co.academic_year = $1
+        GROUP BY c.course_code, c.course_name, co.academic_year
+        ORDER BY total_enrollment DESC
+        LIMIT $2
+      `;
+    } else if (type === 'instructors') {
+      query = `
+        SELECT i.first_name, i.last_name, co.academic_year, SUM(co.class_size) as total_enrollment
+        FROM instructors i
+        JOIN course_offerings co ON i.instructor_id = co.instructor_id
+        WHERE co.academic_year = $1
+        GROUP BY i.first_name, i.last_name, co.academic_year
+        ORDER BY total_enrollment DESC
+        LIMIT $2
+      `;
+    } else {
+      return res.status(400).json({ error: 'Invalid type specified' });
+    }
+
+    const result = await client.query(query, [year, limit]);
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Error fetching top enrolled data:', error);
+    res.status(500).json({ error: 'An error occurred while fetching top enrolled data.' });
+  } finally {
+    client.release();
+  }
+});
+
 
 // Start the server
 const PORT = process.env.PORT || 8000;
