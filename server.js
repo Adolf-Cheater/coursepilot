@@ -623,7 +623,7 @@ app.get('/api/top-enrolled', async (req, res) => {
         WITH course_enrollments AS (
           SELECT co.course_id, SUM(co.class_size) as total_enrollment
           FROM course_offerings co
-          ${year ? `WHERE SUBSTRING(co.academic_year FROM '[0-9]{4}$') = $2` : ''}  -- Extract the year from academic_year and filter
+          ${year ? `WHERE RIGHT(co.academic_year, 4) = $2` : ''}  -- Conditional filtering by year
           GROUP BY co.course_id
         ),
         top_courses AS (
@@ -644,13 +644,14 @@ app.get('/api/top-enrolled', async (req, res) => {
         WITH instructor_enrollments AS (
           SELECT co.instructor_id, SUM(co.class_size) as total_enrollment
           FROM course_offerings co
-          ${year ? `WHERE SUBSTRING(co.academic_year FROM '[0-9]{4}$') = $2` : ''}  -- Extract the year from academic_year and filter
+          ${year ? `WHERE RIGHT(co.academic_year, 4) = $2` : ''}  -- Conditional filtering by year
           GROUP BY co.instructor_id
         ),
         top_instructors AS (
-          SELECT i.first_name, i.last_name, ie.total_enrollment
+          SELECT i.instructor_id, i.first_name, i.last_name, ie.total_enrollment, d.department_name, d.faculty
           FROM instructor_enrollments ie
           JOIN instructors i ON ie.instructor_id = i.instructor_id
+          JOIN departments d ON i.department_id = d.department_id  -- Join with departments to get department_name and faculty
           ORDER BY ie.total_enrollment DESC
           LIMIT $1
         )
@@ -658,6 +659,7 @@ app.get('/api/top-enrolled', async (req, res) => {
         ORDER BY total_enrollment DESC
       `;
     } else {
+      console.error('Invalid type parameter:', type);
       return res.status(400).json({ error: 'Invalid type specified' }); // Return early for invalid type
     }
 
