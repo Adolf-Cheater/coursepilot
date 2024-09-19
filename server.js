@@ -22,6 +22,19 @@ const pool = new Pool({
   }
 });
 
+const poolCourseReq = new Pool({
+  user: 'main',
+  host: 'general-usuage.chkscywoifga.us-east-2.rds.amazonaws.com',
+  database: 'coursereq',
+  password: 'Woshishabi2004!',
+  port: 5432,
+  ssl: {
+    rejectUnauthorized: false  // Ensure SSL is properly configured
+  }
+});
+
+
+
 // Root route for basic health check
 app.get('/', (req, res) => {
   res.send('Server is running');
@@ -31,6 +44,140 @@ app.get('/', (req, res) => {
 app.get('/health', (req, res) => {
   res.status(200).json({ status: 'OK', message: 'Server is running' });
 });
+
+
+app.get('/api/test-db', async (req, res) => {
+  try {
+    const client = await poolCourseReq.connect();
+    await client.query('SELECT 1');
+    client.release();
+    res.json({ message: 'Database connection successful' });
+  } catch (error) {
+    console.error('Database connection error:', error);
+    res.status(500).json({ error: 'Database connection failed' });
+  }
+});
+
+
+// Fetch all courses from coursesdb and link them to requirements
+app.get('/api/coursereq/courses', async (req, res) => {
+  const client = await poolCourseReq.connect();
+  try {
+    // Fetch all courses from coursesdb
+    const coursesResult = await client.query(`
+      SELECT course_letter, course_number, course_title, units 
+      FROM coursesdb
+    `);
+
+    const courses = coursesResult.rows;
+
+    // Link courses to their respective requirements (jrreq, majorreq, etc.)
+    const linkedResults = await Promise.all(
+      courses.map(async (course) => {
+        const jrReq = await client.query(
+          `SELECT * FROM jrreq WHERE course_letter = $1 AND course_number = $2`,
+          [course.course_letter, course.course_number]
+        );
+
+        const majorReq = await client.query(
+          `SELECT * FROM sciencemajorreq WHERE course_letter = $1 AND course_number = $2`,
+          [course.course_letter, course.course_number]
+        );
+
+        const minorReq = await client.query(
+          `SELECT * FROM scienceminorreq WHERE course_letter = $1 AND course_number = $2`,
+          [course.course_letter, course.course_number]
+        );
+
+        const artsReq = await client.query(
+          `SELECT * FROM artsoptionreq WHERE course_letter = $1 AND course_number = $2`,
+          [course.course_letter, course.course_number]
+        );
+
+        return {
+          course,
+          requirements: {
+            juniorCore: jrReq.rows.length > 0,
+            major: majorReq.rows.length > 0,
+            minor: minorReq.rows.length > 0,
+            artsOption: artsReq.rows.length > 0,
+          },
+        };
+      })
+    );
+
+    res.json(linkedResults);
+  } catch (err) {
+    console.error('Error fetching courses and requirements:', err);
+    res.status(500).json({ error: 'Failed to fetch courses and requirements' });
+  } finally {
+    client.release();
+  }
+});
+
+// Search courses and link to requirements
+app.get('/api/coursereq/search', async (req, res) => {
+  const { query } = req.query;
+  const client = await poolCourseReq.connect();
+
+  try {
+    const searchPattern = `%${query}%`;
+
+    // Search for matching courses in 'coursesdb'
+    const searchQuery = `
+      SELECT course_letter, course_number, course_title, units 
+      FROM coursesdb
+      WHERE course_letter ILIKE $1 OR course_number ILIKE $1 OR course_title ILIKE $1
+      LIMIT 10
+    `;
+
+    const coursesResult = await client.query(searchQuery, [searchPattern]);
+    const courses = coursesResult.rows;
+
+    // For each course, check if it's linked to requirements
+    const searchResults = await Promise.all(
+      courses.map(async (course) => {
+        const jrReq = await client.query(
+          `SELECT * FROM jrreq WHERE course_letter = $1 AND course_number = $2`,
+          [course.course_letter, course.course_number]
+        );
+
+        const majorReq = await client.query(
+          `SELECT * FROM sciencemajorreq WHERE course_letter = $1 AND course_number = $2`,
+          [course.course_letter, course.course_number]
+        );
+
+        const minorReq = await client.query(
+          `SELECT * FROM scienceminorreq WHERE course_letter = $1 AND course_number = $2`,
+          [course.course_letter, course.course_number]
+        );
+
+        const artsReq = await client.query(
+          `SELECT * FROM artsoptionreq WHERE course_letter = $1 AND course_number = $2`,
+          [course.course_letter, course.course_number]
+        );
+
+        return {
+          course,
+          requirements: {
+            juniorCore: jrReq.rows.length > 0,
+            major: majorReq.rows.length > 0,
+            minor: minorReq.rows.length > 0,
+            artsOption: artsReq.rows.length > 0,
+          },
+        };
+      })
+    );
+
+    res.json(searchResults);
+  } catch (error) {
+    console.error('Error searching courses and requirements:', error);
+    res.status(500).json({ error: 'An error occurred while searching.' });
+  } finally {
+    client.release();
+  }
+});
+
 
 // Data upload endpoint
 app.post('/api/upload', async (req, res) => {
@@ -171,6 +318,8 @@ async function processUpload(client, data) {
     }
   }
 }
+
+
 
 // New retrieval endpoint for searching by course code or professor name
 app.get('/api/search', async (req, res) => {
@@ -478,38 +627,14 @@ app.get('/api/course/:courseCode/gpas', async (req, res) => {
 });
 
 // Endpoint for fetching professor details
-app.get('/api/professor/:professorSlug', async (req, res) => {
-  const { professorSlug } = req.params;
+// Endpoint for fetching professor details
+app.get('/api/professor/:firstName/:lastName', async (req, res) => {
+  const { firstName, lastName } = req.params;
   const client = await pool.connect();
 
-  console.log(`Received request for professor: ${professorSlug}`);
-
-  if (!professorSlug) {
-    console.error('Professor slug is undefined');
-    return res.status(400).json({ error: 'Invalid professor name' });
-  }
+  console.log(`Fetching data for professor: ${firstName} ${lastName}`);
 
   try {
-    // Split the professorSlug into firstName and lastName
-    const parts = professorSlug.split('-');
-    let firstName, lastName;
-
-    if (parts.length === 2) {
-      [firstName, lastName] = parts;
-    } else if (parts.length > 2) {
-      firstName = parts[0];
-      lastName = parts.slice(1).join(' ');
-    } else {
-      console.error('Invalid professor slug format');
-      return res.status(400).json({ error: 'Invalid professor name format' });
-    }
-
-    // Decode URI components to handle special characters
-    firstName = decodeURIComponent(firstName);
-    lastName = decodeURIComponent(lastName);
-
-    console.log(`Parsed name: ${firstName} ${lastName}`);
-
     // Query to fetch professor details and their course offerings
     const professorQuery = `
       SELECT 
@@ -633,6 +758,7 @@ app.get('/api/professor/:professorSlug', async (req, res) => {
     client.release();
   }
 });
+
 
 app.get('/api/top-enrolled', async (req, res) => {
   const { type, limit, year } = req.query; // Extract query parameters, including year
