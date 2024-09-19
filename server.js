@@ -49,37 +49,42 @@ app.get('/health', (req, res) => {
 app.get('/api/coursereq/courses', async (req, res) => {
   const client = await poolCourseReq.connect();
   try {
-    // Fetch all courses from coursesdb
+    // Fetch all courses from coursesdb with their requirements
     const coursesQuery = `
-      SELECT course_letter, course_number, course_title, units 
-      FROM coursesdb
-      LIMIT 100  // Adjust this limit as needed
+      SELECT 
+        c.course_letter, 
+        c.course_number, 
+        c.course_title, 
+        c.units,
+        CASE WHEN jr.course_letter IS NOT NULL THEN TRUE ELSE FALSE END AS junior_core,
+        CASE WHEN sm.course_letter IS NOT NULL THEN TRUE ELSE FALSE END AS major,
+        CASE WHEN smi.course_letter IS NOT NULL THEN TRUE ELSE FALSE END AS minor,
+        CASE WHEN ao.course_letter IS NOT NULL THEN TRUE ELSE FALSE END AS arts_option
+      FROM 
+        coursesdb c
+      LEFT JOIN jrreq jr ON c.course_letter = jr.course_letter AND c.course_number = jr.course_number
+      LEFT JOIN sciencemajorreq sm ON c.course_letter = sm.course_letter AND c.course_number = sm.course_number
+      LEFT JOIN scienceminorreq smi ON c.course_letter = smi.course_letter AND c.course_number = smi.course_number
+      LEFT JOIN artsoptionreq ao ON c.course_letter = ao.course_letter AND c.course_number = ao.course_number
     `;
 
     const coursesResult = await client.query(coursesQuery);
-    const courses = coursesResult.rows;
-
-    // For each course, check if it meets any requirements
-    const linkedResults = await Promise.all(courses.map(async (course) => {
-      const [jrReq, majorReq, minorReq, artsReq] = await Promise.all([
-        client.query('SELECT 1 FROM jrreq WHERE course_letter = $1 AND course_number = $2', [course.course_letter, course.course_number]),
-        client.query('SELECT 1 FROM sciencemajorreq WHERE course_letter = $1 AND course_number = $2', [course.course_letter, course.course_number]),
-        client.query('SELECT 1 FROM scienceminorreq WHERE course_letter = $1 AND course_number = $2', [course.course_letter, course.course_number]),
-        client.query('SELECT 1 FROM artsoptionreq WHERE course_letter = $1 AND course_number = $2', [course.course_letter, course.course_number])
-      ]);
-
-      return {
-        course,
-        requirements: {
-          juniorCore: jrReq.rows.length > 0,
-          major: majorReq.rows.length > 0,
-          minor: minorReq.rows.length > 0,
-          artsOption: artsReq.rows.length > 0
-        }
-      };
+    const courses = coursesResult.rows.map(row => ({
+      course: {
+        course_letter: row.course_letter,
+        course_number: row.course_number,
+        course_title: row.course_title,
+        units: row.units
+      },
+      requirements: {
+        juniorCore: row.junior_core,
+        major: row.major,
+        minor: row.minor,
+        artsOption: row.arts_option
+      }
     }));
 
-    res.json(linkedResults);
+    res.json(courses);
   } catch (err) {
     console.error('Error fetching courses and requirements:', err);
     res.status(500).json({ error: 'Failed to fetch courses and requirements' });
@@ -96,40 +101,30 @@ app.get('/api/coursereq/search', async (req, res) => {
   try {
     const searchPattern = `%${query}%`;
 
-    // First, search for matching courses in coursesdb
+    // Search for matching courses in coursesdb
     const searchQuery = `
-      SELECT course_letter, course_number, course_title, units 
-      FROM coursesdb
-      WHERE course_letter ILIKE $1 OR course_number ILIKE $1 OR course_title ILIKE $1
+      SELECT 
+        course_letter, 
+        course_number, 
+        course_title, 
+        units 
+      FROM 
+        coursesdb
+      WHERE 
+        LOWER(CONCAT(course_letter, ' ', course_number)) LIKE LOWER($1)
+        OR LOWER(course_title) LIKE LOWER($1)
       LIMIT 10
     `;
 
     const coursesResult = await client.query(searchQuery, [searchPattern]);
-    const courses = coursesResult.rows;
-
-    // Now, for each course, check if it meets any requirements
-    const searchResults = await Promise.all(courses.map(async (course) => {
-      const [jrReq, majorReq, minorReq, artsReq] = await Promise.all([
-        client.query('SELECT 1 FROM jrreq WHERE course_letter = $1 AND course_number = $2', [course.course_letter, course.course_number]),
-        client.query('SELECT 1 FROM sciencemajorreq WHERE course_letter = $1 AND course_number = $2', [course.course_letter, course.course_number]),
-        client.query('SELECT 1 FROM scienceminorreq WHERE course_letter = $1 AND course_number = $2', [course.course_letter, course.course_number]),
-        client.query('SELECT 1 FROM artsoptionreq WHERE course_letter = $1 AND course_number = $2', [course.course_letter, course.course_number])
-      ]);
-
-      return {
-        course,
-        requirements: {
-          juniorCore: jrReq.rows.length > 0,
-          major: majorReq.rows.length > 0,
-          minor: minorReq.rows.length > 0,
-          artsOption: artsReq.rows.length > 0
-        }
-      };
+    const courses = coursesResult.rows.map(row => ({
+      course_code: `${row.course_letter} ${row.course_number}`,
+      course_name: row.course_title
     }));
 
-    res.json(searchResults);
+    res.json({ courses });
   } catch (error) {
-    console.error('Error searching courses and requirements:', error);
+    console.error('Error searching courses:', error);
     res.status(500).json({ error: 'An error occurred while searching.' });
   } finally {
     client.release();
