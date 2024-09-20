@@ -169,6 +169,33 @@ app.get('/api/requirements/:major', async (req, res) => {
   }
 });
 
+app.get('/api/junior-core-requirements', async (req, res) => {
+  const client = await poolCourseReq.connect();
+  try {
+    const jrReqQuery = 'SELECT * FROM JrReq';
+    const result = await client.query(jrReqQuery);
+    
+    // Group the requirements by category
+    const groupedRequirements = result.rows.reduce((acc, req) => {
+      if (!acc[req.category]) {
+        acc[req.category] = [];
+      }
+      acc[req.category].push({
+        course_letter: req.course_letter,
+        course_number: req.course_number
+      });
+      return acc;
+    }, {});
+
+    res.json(groupedRequirements);
+  } catch (error) {
+    console.error('Error fetching junior core requirements:', error);
+    res.status(500).json({ error: 'An error occurred while fetching junior core requirements' });
+  } finally {
+    client.release();
+  }
+});
+
 app.get('/api/requirements/:minor/minor', async (req, res) => {
   const { minor } = req.params;
   const client = await poolCourseReq.connect();
