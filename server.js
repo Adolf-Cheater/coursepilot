@@ -133,16 +133,72 @@ app.get('/api/coursereq/search', async (req, res) => {
 
 app.get('/api/requirements/:major', async (req, res) => {
   const { major } = req.params;
+  const client = await poolCourseReq.connect();
   try {
-    const facultyReq = await db.query('SELECT * FROM FacultyRequirements WHERE faculty_name = $1', ['Science']);
-    const majorReq = await db.query('SELECT * FROM ScienceMajorReq WHERE major_name = $1', [major]);
+    const facultyReqQuery = 'SELECT * FROM FacultyRequirements WHERE faculty_name = $1';
+    const majorReqQuery = 'SELECT * FROM ScienceMajorReq WHERE major_name = $1';
     
+    const [facultyReq, majorReq] = await Promise.all([
+      client.query(facultyReqQuery, ['Science']),
+      client.query(majorReqQuery, [major])
+    ]);
+
+    // Group major requirements by level_group
+    const groupedMajorReq = majorReq.rows.reduce((acc, req) => {
+      if (!acc[req.level_group]) {
+        acc[req.level_group] = [];
+      }
+      acc[req.level_group].push({
+        course_letter: req.course_letter,
+        course_number: req.course_number,
+        course_group: req.course_group,
+        completed: false // Initialize as not completed
+      });
+      return acc;
+    }, {});
+
     res.json({
       facultyRequirements: facultyReq.rows[0],
-      majorRequirements: majorReq.rows
+      majorRequirements: groupedMajorReq
     });
   } catch (error) {
+    console.error('Error fetching major requirements:', error);
     res.status(500).json({ error: 'An error occurred while fetching requirements' });
+  } finally {
+    client.release();
+  }
+});
+
+app.get('/api/requirements/:minor/minor', async (req, res) => {
+  const { minor } = req.params;
+  const client = await poolCourseReq.connect();
+  try {
+    const minorReqQuery = 'SELECT * FROM ScienceMinorReq WHERE minor_name = $1';
+    
+    const minorReq = await client.query(minorReqQuery, [minor]);
+
+    // Group minor requirements by level_group
+    const groupedMinorReq = minorReq.rows.reduce((acc, req) => {
+      if (!acc[req.level_group]) {
+        acc[req.level_group] = [];
+      }
+      acc[req.level_group].push({
+        course_letter: req.course_letter,
+        course_number: req.course_number,
+        course_group: req.course_group,
+        completed: false // Initialize as not completed
+      });
+      return acc;
+    }, {});
+
+    res.json({
+      minorRequirements: groupedMinorReq
+    });
+  } catch (error) {
+    console.error('Error fetching minor requirements:', error);
+    res.status(500).json({ error: 'An error occurred while fetching minor requirements' });
+  } finally {
+    client.release();
   }
 });
 
