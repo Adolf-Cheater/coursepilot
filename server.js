@@ -131,6 +131,21 @@ app.get('/api/coursereq/search', async (req, res) => {
   }
 });
 
+app.get('/api/requirements/:major', async (req, res) => {
+  const { major } = req.params;
+  try {
+    const facultyReq = await db.query('SELECT * FROM FacultyRequirements WHERE faculty_name = $1', ['Science']);
+    const majorReq = await db.query('SELECT * FROM ScienceMajorReq WHERE major_name = $1', [major]);
+    
+    res.json({
+      facultyRequirements: facultyReq.rows[0],
+      majorRequirements: majorReq.rows
+    });
+  } catch (error) {
+    res.status(500).json({ error: 'An error occurred while fetching requirements' });
+  }
+});
+
 // Data upload endpoint
 app.post('/api/upload', async (req, res) => {
   console.log('Attempting to connect to database:', pool.options.database);
