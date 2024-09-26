@@ -169,6 +169,33 @@ app.get('/api/requirements/:major', async (req, res) => {
   }
 });
 
+app.get('/api/science-faculty-requirements', async (req, res) => {
+  const client = await poolCourseReq.connect();
+  try {
+    const facultyReqQuery = 'SELECT * FROM FacultyRequirements WHERE faculty_name = $1';
+    
+    const facultyReq = await client.query(facultyReqQuery, ['Science']);
+
+    if (facultyReq.rows.length === 0) {
+      return res.status(404).json({ error: 'Science faculty requirements not found' });
+    }
+
+    const requirements = facultyReq.rows[0];
+
+    res.json({
+      facultyName: requirements.faculty_name,
+      totalCoursesRequired: requirements.total_courses_required,
+      minUpperLevelCourses: requirements.min_upper_level_courses,
+      minFacultyCourses: requirements.min_faculty_courses
+    });
+  } catch (error) {
+    console.error('Error fetching Science faculty requirements:', error);
+    res.status(500).json({ error: 'An error occurred while fetching Science faculty requirements' });
+  } finally {
+    client.release();
+  }
+});
+
 app.get('/api/junior-core-requirements', async (req, res) => {
   const client = await poolCourseReq.connect();
   try {
@@ -195,6 +222,7 @@ app.get('/api/junior-core-requirements', async (req, res) => {
     client.release();
   }
 });
+
 
 app.get('/api/requirements/:minor/minor', async (req, res) => {
   const { minor } = req.params;
