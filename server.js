@@ -7,23 +7,20 @@ dotenv.config();
 const openaiApiKey = process.env.OPENAI_API_KEY;
 const pineconeApiKey = process.env.PINECONE_API_KEY;
 
+let pineconeIndex; // Declare this variable to hold the Pinecone index
+
 // Initialize Pinecone client
-const pinecone = new PineconeClient();
-pinecone.init({
-  apiKey: pineconeApiKey,
-  environment: "aped-4627-b74a"  // This is extracted from your URL
-}).then(async () => {
+async function initPinecone() {
+  const pinecone = new PineconeClient();
+  await pinecone.init({
+    apiKey: pineconeApiKey,
+    environment: "aped-4627-b74a"
+  });
   console.log("Pinecone initialized successfully");
-  try {
-    const index = pinecone.Index("bearpath");
-    console.log("Pinecone index accessed successfully");
-    // Your code that uses the index should be here or called from here
-  } catch (error) {
-    console.error("Error accessing Pinecone index:", error);
-  }
-}).catch(error => {
-  console.error("Error initializing Pinecone:", error);
-});
+  
+  pineconeIndex = pinecone.Index("bearpath");
+  console.log("Pinecone index accessed successfully");
+}
 
 const express = require('express');
 const { Pool } = require('pg');
@@ -32,7 +29,7 @@ const bodyParser = require('body-parser');
 
 const app = express();
 
-// Use body-parser middleware to parse JSON bodies
+// Use body-parser mid  dleware to parse JSON bodies
 app.use(bodyParser.json());
 app.use(express.json());
 app.use(cors());
@@ -105,7 +102,7 @@ app.post('/api/query', async (req, res) => {
 
     // Query Pinecone
     console.log("Querying Pinecone with the embedding...");
-    const queryResponse = await index.query({
+    const queryResponse = await pineconeIndex.query({
       vector: questionEmbedding,
       topK: 5,
       includeMetadata: true
@@ -1033,8 +1030,12 @@ app.use((req, res) => {
   res.status(404).send('Not Found');
 });
 
-// Start the server
-const PORT = process.env.PORT || 8000;
-app.listen(PORT, () => {
-  console.log(`Server is running on port ${PORT}`);
+// Initialize Pinecone and start the server
+initPinecone().then(() => {
+  const PORT = process.env.PORT || 8000;
+  app.listen(PORT, () => {
+    console.log(`Server is running on port ${PORT}`);
+  });
+}).catch(error => {
+  console.error("Failed to initialize Pinecone. Server not started:", error);
 });
