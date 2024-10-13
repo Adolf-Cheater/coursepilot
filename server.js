@@ -1,18 +1,21 @@
 const { OpenAI } = require('openai');
-const dotenv = require('dotenv');
 const { PineconeClient } = require('@pinecone-database/pinecone');
+const dotenv = require('dotenv');
+
+dotenv.config();
+
+const openaiApiKey = process.env.OPENAI_API_KEY;
+const pineconeApiKey = process.env.PINECONE_API_KEY;
 
 // Initialize Pinecone client
 const pinecone = new PineconeClient();
 pinecone.init({
-  apiKey: process.env.PINECONE_API_KEY,
+  apiKey: pineconeApiKey,
   environment: "aped-4627-b74a"  // This is extracted from your URL
 }).then(async () => {
   const index = pinecone.Index("bearpath");
   // Your code that uses the index should be here or called from here
 });
-const openaiApiKey = process.env.OPENAI_API_KEY;
-const pineconeApiKey = process.env.PINECONE_API_KEY;
 
 const express = require('express');
 const { Pool } = require('pg');
@@ -20,11 +23,13 @@ const cors = require('cors');
 const bodyParser = require('body-parser');
 
 const app = express();
-dotenv.config();
+
 // Use body-parser middleware to parse JSON bodies
 app.use(bodyParser.json());
 app.use(express.json());
 app.use(cors());
+
+
 
 // Configure PostgreSQL connection
 const pool = new Pool({
