@@ -11,13 +11,15 @@ let pineconeIndex; // Declare this variable to hold the Pinecone index
 
 async function initPinecone() {
   try {
-    const pc = new Pinecone({
+    // Initialize Pinecone client correctly
+    const pc = new PineconeClient();
+    await pc.init({
       apiKey: process.env.PINECONE_API_KEY, // Load the API key from your environment variables
-      environment: "us-east-1" // The environment should match your Pinecone region
+      environment: process.env.PINECONE_ENVIRONMENT // The environment should match your Pinecone region
     });
 
     // Check if the index exists
-    pineconeIndex = pc.index('bearpath');  // Assuming 'bearpath' is your index name
+    pineconeIndex = pc.Index('bearpath');  // Assuming 'bearpath' is your index name
     console.log("Pinecone initialized successfully");
 
     // Additional check to see if the index exists
@@ -78,6 +80,7 @@ app.get('/health', (req, res) => {
   res.status(200).json({ status: 'OK', message: 'Server is running' });
 });
 
+// API route for querying Pinecone
 app.post('/api/query', async (req, res) => {
   const { question } = req.body;
 
@@ -162,6 +165,7 @@ app.post('/api/query', async (req, res) => {
     res.status(500).json({ error: `An error occurred while processing your query: ${error.message}` });
   }
 });
+
 
 app.get('/api/coursereq/courses', async (req, res) => {
   const client = await poolCourseReq.connect();
@@ -1029,6 +1033,7 @@ app.use((req, res) => {
 
 // Start the server
 const PORT = process.env.PORT || 8000;
-app.listen(PORT, () => {
+app.listen(PORT, async () => {
+  await initPinecone(); // Initialize Pinecone on server start
   console.log(`Server is running on port ${PORT}`);
 });
