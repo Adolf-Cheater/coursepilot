@@ -13,8 +13,16 @@ pinecone.init({
   apiKey: pineconeApiKey,
   environment: "aped-4627-b74a"  // This is extracted from your URL
 }).then(async () => {
-  const index = pinecone.Index("bearpath");
-  // Your code that uses the index should be here or called from here
+  console.log("Pinecone initialized successfully");
+  try {
+    const index = pinecone.Index("bearpath");
+    console.log("Pinecone index accessed successfully");
+    // Your code that uses the index should be here or called from here
+  } catch (error) {
+    console.error("Error accessing Pinecone index:", error);
+  }
+}).catch(error => {
+  console.error("Error initializing Pinecone:", error);
 });
 
 const express = require('express');
