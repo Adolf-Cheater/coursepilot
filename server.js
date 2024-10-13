@@ -126,7 +126,26 @@ app.post('/api/query', async (req, res) => {
       context = "Additional context is currently unavailable.";
     }
 
-    // Rest of the code remains the same...
+    const chatCompletion = await client.chat.completions.create({
+      model: "ft:gpt-4o-mini-2024-07-18:personal::AHmNGvuH",
+      messages: [
+        {
+          role: "system",
+          content: "You are a knowledgeable and helpful course advisor assistant for BearPath. You provide information about courses, professors, and GPAs based on the data available. Avoid answering any questions that is not related to courses, professors or GPAs."
+        },
+        {
+          role: "user",
+          content: `Based on the following course information:\n\n${context}\n\nUser question: ${question}\n\nPlease provide a helpful response:`
+        }
+      ],
+    });
+
+    const answer = chatCompletion.choices[0]?.message?.content;
+    if (!answer) {
+      return res.status(500).json({ error: 'Failed to generate response from fine-tuned model' });
+    }
+
+    res.json({ answer });
   } catch (error) {
     console.error('Error processing query:', error);
     res.status(500).json({ error: `An error occurred while processing your query: ${error.message}` });
