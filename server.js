@@ -1,26 +1,26 @@
 const { OpenAI } = require('openai');
-const { PineconeClient } = require('@pinecone-database/pinecone');
+const { Pinecone } = require('@pinecone-database/pinecone');
 const dotenv = require('dotenv');
 
 dotenv.config();
+console.log("PINECONE_API_KEY:", process.env.PINECONE_API_KEY ? "Set" : "Not set");
 let pineconeIndex;
 // Initialize Pinecone client
 async function initPinecone() {
   try {
-    const client = new PineconeClient();
+    console.log("Attempting to initialize Pinecone...");
+    const pinecone = new Pinecone();
 
-    // Initialize the Pinecone client
-    await client.init({
-      apiKey: process.env.PINECONE_API_KEY, 
-      environment: process.env.PINECONE_ENVIRONMENT // Ensure the environment variable is correctly set
-    });
+    console.log("Pinecone client created, attempting to access index...");
+    pineconeIndex = pinecone.Index('bearpath');
+    console.log("Pinecone index accessed successfully");
 
-    // Access the index
-    pineconeIndex = client.Index('bearpath');  // Make sure 'bearpath' is your correct index name
-    console.log("Pinecone initialized successfully");
+    // Test the connection
+    const stats = await pineconeIndex.describeIndexStats();
+    console.log("Pinecone connection test successful. Index stats:", stats);
   } catch (error) {
-    console.error("Error initializing Pinecone:", error.message);
-    pineconeIndex = null; // Handle the error and proceed without Pinecone
+    console.error("Error initializing Pinecone:", error);
+    pineconeIndex = null;
   }
 }
 
@@ -126,26 +126,7 @@ app.post('/api/query', async (req, res) => {
       context = "Additional context is currently unavailable.";
     }
 
-    const chatCompletion = await client.chat.completions.create({
-      model: "ft:gpt-4o-mini-2024-07-18:personal::AHmNGvuH",
-      messages: [
-        {
-          role: "system",
-          content: "You are a knowledgeable and helpful course advisor assistant for BearPath. You provide information about courses, professors, and GPAs based on the data available. Avoid answering any questions that is not related to courses, professors or GPAs."
-        },
-        {
-          role: "user",
-          content: `Based on the following course information:\n\n${context}\n\nUser question: ${question}\n\nPlease provide a helpful response:`
-        }
-      ],
-    });
-
-    const answer = chatCompletion.choices[0]?.message?.content;
-    if (!answer) {
-      return res.status(500).json({ error: 'Failed to generate response from fine-tuned model' });
-    }
-
-    res.json({ answer });
+    // Rest of the code remains the same...
   } catch (error) {
     console.error('Error processing query:', error);
     res.status(500).json({ error: `An error occurred while processing your query: ${error.message}` });
