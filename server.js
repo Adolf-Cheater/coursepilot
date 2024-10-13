@@ -3,10 +3,6 @@ const { Pinecone } = require('@pinecone-database/pinecone');
 const dotenv = require('dotenv');
 
 dotenv.config();
-
-const openaiApiKey = process.env.OPENAI_API_KEY;
-const pineconeApiKey = process.env.PINECONE_API_KEY;
-
 let pineconeIndex;
 
 dotenv.config();
@@ -15,7 +11,7 @@ async function initPinecone() {
   try {
     const pc = new Pinecone({
       apiKey: process.env.PINECONE_API_KEY, // Load the API key from your environment variables
-      environment: process.env.PINECONE_ENVIRONMENT // Load the environment from your environment variables
+      environment: process.env.PINECONE_ENVIRONMENT_KEY // Load the environment from your environment variables
     });
 
     pineconeIndex = pc.index('bearpath');  // Assuming 'bearpath' is your index name
