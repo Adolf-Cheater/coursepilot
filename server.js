@@ -71,81 +71,61 @@ app.get('/health', (req, res) => {
 });
 
 app.post('/api/query', async (req, res) => {
-  //console.log("POST /api/query called");
-
   const { question } = req.body;
-  //console.log("Received request with body:", req.body);
 
   if (!question) {
-    console.log("No question provided in request body");
     return res.status(400).json({ error: 'Question is required' });
   }
 
   try {
-    //console.log("Initializing OpenAI client...");
     const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-   // console.log("OpenAI client initialized");
 
-    // Get embedding for the question
-    //console.log("Getting embedding for the question:", question);
     const embeddingResponse = await client.embeddings.create({
       model: "text-embedding-ada-002",
       input: question,
     });
-    //console.log("Received embedding response:", embeddingResponse.data);
 
     const questionEmbedding = embeddingResponse.data[0]?.embedding;
     if (!questionEmbedding) {
-      console.error("Error: No embedding returned from OpenAI");
       return res.status(500).json({ error: 'Failed to generate embedding from OpenAI' });
     }
 
-    // Query Pinecone
-    //console.log("Querying Pinecone with the embedding...");
-    let queryResponse;
+    let context = "";
     if (pineconeIndex) {
       try {
-        queryResponse = await pineconeIndex.query({
+        const queryResponse = await pineconeIndex.query({
           vector: questionEmbedding,
           topK: 5,
           includeMetadata: true
         });
-        //console.log("Pinecone query response:", queryResponse);
+        
+        // Format context from Pinecone results
+        for (let match of queryResponse.matches) {
+          if (match.metadata.type === 'gpa') {
+            context += `Course: ${match.metadata.department} ${match.metadata.courseNumber}, `
+              + `Professor: ${match.metadata.professorNames}, `
+              + `Term: ${match.metadata.term}, `
+              + `Section: ${match.metadata.section}, `
+              + `GPA: ${match.metadata.gpa}, `
+              + `Class Size: ${match.metadata.classSize}\n\n`;
+          } else if (match.metadata.type === 'course') {
+            context += `Course: ${match.metadata.courseLetter} ${match.metadata.courseNumber}, `
+              + `Title: ${match.metadata.courseTitle}, `
+              + `Units: ${match.metadata.Units}, `
+              + `Description: ${match.metadata.courseDescription}, `
+              + `Faculty: ${match.metadata.facultyName}\n\n`;
+          }
+        }
       } catch (error) {
         console.error("Error querying Pinecone:", error);
-        queryResponse = { matches: [] };
+        context = "Unable to retrieve additional context due to a temporary issue.";
       }
     } else {
-      console.warn("Pinecone index not available. Skipping Pinecone query.");
-      queryResponse = { matches: [] };
+      context = "Additional context is currently unavailable.";
     }
 
-    // Format context from Pinecone results
-    let context = "";
-    for (let match of queryResponse.matches) {
-      console.log("Processing match:", match.metadata);
-      if (match.metadata.type === 'gpa') {
-        context += `Course: ${match.metadata.department} ${match.metadata.courseNumber}, `
-          + `Professor: ${match.metadata.professorNames}, `
-          + `Term: ${match.metadata.term}, `
-          + `Section: ${match.metadata.section}, `
-          + `GPA: ${match.metadata.gpa}, `
-          + `Class Size: ${match.metadata.classSize}\n\n`;
-      } else if (match.metadata.type === 'course') {
-        context += `Course: ${match.metadata.courseLetter} ${match.metadata.courseNumber}, `
-          + `Title: ${match.metadata.courseTitle}, `
-          + `Units: ${match.metadata.Units}, `
-          + `Description: ${match.metadata.courseDescription}, `
-          + `Faculty: ${match.metadata.facultyName}\n\n`;
-      }
-    }
-
-    //console.log("Formatted context for query:", context);
-
-    // Query the fine-tuned model
-    //console.log("Querying fine-tuned model with context and user question");
     const chatCompletion = await client.chat.completions.create({
-      model: "ft:gpt-4o-mini-2024-07-18:personal::AHmNGvuH", // Your fine-tuned model
+      model: "ft:gpt-4o-mini-2024-07-18:personal::AHmNGvuH",
       messages: [
         {
           role: "system",
@@ -160,11 +140,8 @@ app.post('/api/query', async (req, res) => {
 
     const answer = chatCompletion.choices[0]?.message?.content;
     if (!answer) {
-      console.error("No response received from fine-tuned model");
       return res.status(500).json({ error: 'Failed to generate response from fine-tuned model' });
     }
-
-    //console.log("Generated answer from model:", answer);
 
     res.json({ answer });
   } catch (error) {
