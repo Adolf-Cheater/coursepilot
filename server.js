@@ -9,27 +9,17 @@ const pineconeApiKey = process.env.PINECONE_API_KEY;
 
 let pineconeIndex; // Declare this variable to hold the Pinecone index
 
+// Initialize Pinecone client
 async function initPinecone() {
-  try {
-    // Initialize Pinecone client correctly
-    const pc = new PineconeClient();
-    await pc.init({
-      apiKey: process.env.PINECONE_API_KEY, // Load the API key from your environment variables
-      environment: process.env.PINECONE_ENVIRONMENT // The environment should match your Pinecone region
-    });
-
-    // Check if the index exists
-    pineconeIndex = pc.Index('bearpath');  // Assuming 'bearpath' is your index name
-    console.log("Pinecone initialized successfully");
-
-    // Additional check to see if the index exists
-    const indexStats = await pineconeIndex.describeIndex();
-    console.log("Pinecone index exists and is accessible:", indexStats);
-
-  } catch (error) {
-    console.error("Error initializing Pinecone:", error);
-    pineconeIndex = null; // Handle the error and proceed without Pinecone
-  }
+  const pinecone = new PineconeClient();
+  await pinecone.init({
+    apiKey: pineconeApiKey,
+    environment: "aped-4627-b74a"
+  });
+  console.log("Pinecone initialized successfully");
+  
+  pineconeIndex = pinecone.Index("bearpath");
+  console.log("Pinecone index accessed successfully");
 }
 
 const express = require('express');
@@ -80,7 +70,6 @@ app.get('/health', (req, res) => {
   res.status(200).json({ status: 'OK', message: 'Server is running' });
 });
 
-// API route for querying Pinecone
 app.post('/api/query', async (req, res) => {
   const { question } = req.body;
 
@@ -165,7 +154,6 @@ app.post('/api/query', async (req, res) => {
     res.status(500).json({ error: `An error occurred while processing your query: ${error.message}` });
   }
 });
-
 
 app.get('/api/coursereq/courses', async (req, res) => {
   const client = await poolCourseReq.connect();
@@ -1033,7 +1021,7 @@ app.use((req, res) => {
 
 // Start the server
 const PORT = process.env.PORT || 8000;
-app.listen(PORT, async () => {
-  await initPinecone(); // Initialize Pinecone on server start
+app.listen(PORT, () => {
+ 
   console.log(`Server is running on port ${PORT}`);
 });
