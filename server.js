@@ -9,18 +9,22 @@ const pineconeApiKey = process.env.PINECONE_API_KEY;
 
 let pineconeIndex;
 
+const { Pinecone } = require('@pinecone-database/pinecone');
+const dotenv = require('dotenv');
+
+dotenv.config();
+
 async function initPinecone() {
   try {
-    const client = new PineconeClient();
-    await client.init({
-      apiKey: process.env.PINECONE_API_KEY,
-      environment: 'us-east-1'  // Ensure the environment is correct (e.g., 'us-west1-gcp')
+    const pc = new Pinecone({
+      apiKey: process.env.PINECONE_API_KEY // Load the API key from your environment variables
     });
-    pineconeIndex = client.Index('bearpath');  // Assuming 'bearpath' is your index name
+
+    pineconeIndex = pc.index('bearpath');  // Assuming 'bearpath' is your index name
     console.log("Pinecone initialized successfully");
   } catch (error) {
     console.error("Error initializing Pinecone:", error);
-    pineconeIndex = null;
+    pineconeIndex = null; // Handle the error and proceed without Pinecone
   }
 }
 
