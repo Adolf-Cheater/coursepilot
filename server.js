@@ -21,7 +21,7 @@ async function initPinecone() {
     const pinecone = new PineconeClient();
     await pinecone.init({
       apiKey: pineconeApiKey,
-      environment: "aped-4627-b74a"
+      environment: "us-east-1"
     });
     pinecone.projectName = 'default';  // Manually set project name if necessary
     pineconeIndex = pinecone.Index("bearpath");
