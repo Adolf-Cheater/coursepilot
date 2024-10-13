@@ -1,3 +1,14 @@
+import { OpenAI } from 'openai';
+import { Pinecone } from 'pinecone-client';
+import dotenv from 'dotenv';
+
+dotenv.config();
+
+const pc = new Pinecone();
+const index = pc.Index("bearpath");
+const openaiApiKey = process.env.OPENAI_API_KEY;
+const pineconeApiKey = process.env.PINECONE_API_KEY;
+
 const express = require('express');
 const { Pool } = require('pg');
 const cors = require('cors');
@@ -7,7 +18,7 @@ const app = express();
 
 // Use body-parser middleware to parse JSON bodies
 app.use(bodyParser.json());
-
+app.use(express.json());
 app.use(cors());
 
 // Configure PostgreSQL connection
@@ -34,7 +45,6 @@ const poolCourseReq = new Pool({
 });
 
 
-
 // Root route for basic health check
 app.get('/', (req, res) => {
   res.send('Server is running');
@@ -45,6 +55,101 @@ app.get('/health', (req, res) => {
   res.status(200).json({ status: 'OK', message: 'Server is running' });
 });
 
+app.post('/api/query', async (req, res) => {
+  console.log("POST /api/query called");
+
+  const { question } = req.body;
+  console.log("Received request with body:", req.body);
+
+  if (!question) {
+    console.log("No question provided in request body");
+    return res.status(400).json({ error: 'Question is required' });
+  }
+
+  try {
+    console.log("Initializing OpenAI client...");
+    const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+    console.log("OpenAI client initialized");
+
+    // Get embedding for the question
+    console.log("Getting embedding for the question:", question);
+    const embeddingResponse = await client.embeddings.create({
+      model: "text-embedding-ada-002",
+      input: question,
+    });
+    console.log("Received embedding response:", embeddingResponse.data);
+
+    const questionEmbedding = embeddingResponse.data[0]?.embedding;
+    if (!questionEmbedding) {
+      console.error("Error: No embedding returned from OpenAI");
+      return res.status(500).json({ error: 'Failed to generate embedding from OpenAI' });
+    }
+
+    // Query Pinecone
+    console.log("Querying Pinecone with the embedding...");
+    const queryResponse = await index.query({
+      vector: questionEmbedding,
+      topK: 5,
+      includeMetadata: true
+    });
+    console.log("Pinecone query response:", queryResponse);
+
+    if (!queryResponse.matches || queryResponse.matches.length === 0) {
+      console.error("No matches found from Pinecone query");
+    }
+
+    // Format context from Pinecone results
+    let context = "";
+    for (let match of queryResponse.matches) {
+      console.log("Processing match:", match.metadata);
+      if (match.metadata.type === 'gpa') {
+        context += `Course: ${match.metadata.department} ${match.metadata.courseNumber}, `
+          + `Professor: ${match.metadata.professorNames}, `
+          + `Term: ${match.metadata.term}, `
+          + `Section: ${match.metadata.section}, `
+          + `GPA: ${match.metadata.gpa}, `
+          + `Class Size: ${match.metadata.classSize}\n\n`;
+      } else if (match.metadata.type === 'course') {
+        context += `Course: ${match.metadata.courseLetter} ${match.metadata.courseNumber}, `
+          + `Title: ${match.metadata.courseTitle}, `
+          + `Units: ${match.metadata.Units}, `
+          + `Description: ${match.metadata.courseDescription}, `
+          + `Faculty: ${match.metadata.facultyName}\n\n`;
+      }
+    }
+
+    console.log("Formatted context for query:", context);
+
+    // Query the fine-tuned model
+    console.log("Querying fine-tuned model with context and user question");
+    const chatCompletion = await client.chat.completions.create({
+      model: "ft:gpt-4o-mini-2024-07-18:personal::AHmNGvuH", // Your fine-tuned model
+      messages: [
+        {
+          role: "system",
+          content: "You are a knowledgeable and helpful course advisor assistant for RateMyCourse. You provide information about courses, professors, and GPAs based on the data available."
+        },
+        {
+          role: "user",
+          content: `Based on the following course information:\n\n${context}\n\nUser question: ${question}\n\nPlease provide a helpful response:`
+        }
+      ],
+    });
+
+    const answer = chatCompletion.choices[0]?.message?.content;
+    if (!answer) {
+      console.error("No response received from fine-tuned model");
+      return res.status(500).json({ error: 'Failed to generate response from fine-tuned model' });
+    }
+
+    console.log("Generated answer from model:", answer);
+
+    res.json({ answer });
+  } catch (error) {
+    console.error('Error processing query:', error);
+    res.status(500).json({ error: `An error occurred while processing your query: ${error.message}` });
+  }
+});
 
 app.get('/api/coursereq/courses', async (req, res) => {
   const client = await poolCourseReq.connect();
@@ -902,6 +1007,12 @@ app.get('/api/top-enrolled', async (req, res) => {
   } finally {
     client.release(); // Ensure client is released
   }
+});
+
+
+app.use((req, res) => {
+  console.log(`Unhandled request: ${req.method} ${req.path}`);
+  res.status(404).send('Not Found');
 });
 
 // Start the server
