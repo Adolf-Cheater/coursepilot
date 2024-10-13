@@ -1,41 +1,12 @@
-const { OpenAI } = require('openai');
-const { PineconeClient } = require('@pinecone-database/pinecone');
 const dotenv = require('dotenv');
 const express = require('express');
 const { Pool } = require('pg');
 const cors = require('cors');
 const bodyParser = require('body-parser');
-
-
+const { exec } = require('child_process');
 
 dotenv.config();
 
-const openaiApiKey = process.env.OPENAI_API_KEY;
-const pineconeApiKey = process.env.PINECONE_API_KEY;
-
-let pineconeIndex; // Declare this variable to hold the Pinecone index
-
-// Initialize Pinecone client
-async function initPinecone() {
-  try {
-    const pinecone = new PineconeClient();
-
-    // Initialize with the Pinecone API key and correct environment
-    await pinecone.init({
-      apiKey: pineconeApiKey,
-      environment: "us-east-1" // Ensure the correct environment
-    });
-
-    // Manually set the index host to avoid fetching the project name
-    pineconeIndex = pinecone.Index("bearpath", {
-      host: "https://bearpath-rlipr2a.svc.aped-4627-b74a.pinecone.io"
-    });
-
-    console.log("Pinecone index accessed successfully");
-  } catch (error) {
-    console.error("Error initializing Pinecone:", error);
-  }
-}
 
 const app = express();
 
@@ -89,81 +60,29 @@ app.post('/api/query', async (req, res) => {
   }
 
   try {
-    const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+    // Run the Python script and pass the question as an argument
+    const command = `python3 path_to_your_script.py "${question}"`;  // Adjust the path to your Python script
 
-    // Get embedding for the question
-    const embeddingResponse = await client.embeddings.create({
-      model: "text-embedding-ada-002",
-      input: question,
-    });
+    exec(command, (error, stdout, stderr) => {
+      if (error) {
+        console.error(`Error executing Python script: ${error.message}`);
+        return res.status(500).json({ error: 'Error executing Python script' });
+      }
+      
+      if (stderr) {
+        console.error(`Python script stderr: ${stderr}`);
+        return res.status(500).json({ error: 'Error in Python script' });
+      }
 
-    const questionEmbedding = embeddingResponse.data[0]?.embedding;
-    if (!questionEmbedding) {
-      return res.status(500).json({ error: 'Failed to generate embedding from OpenAI' });
-    }
-
-    // Query Pinecone
-    let queryResponse;
-    //console.log(queryResponse);
-    //console.log(pineconeIndex);
-    if (pineconeIndex) {
       try {
-        queryResponse = await pineconeIndex.query({
-          vector: questionEmbedding,
-          topK: 5,
-          namespace: "",
-          includeMetadata: true
-       
-        });
-      } catch (error) {
-        console.error("Error querying Pinecone:", error);
-        return res.status(500).json({ error: 'Error querying Pinecone' });
+        // Parse the Python script output as JSON
+        const result = JSON.parse(stdout);
+        res.json({ answer: result.answer });
+      } catch (parseError) {
+        console.error(`Error parsing Python output: ${parseError.message}`);
+        res.status(500).json({ error: 'Error parsing Python script output' });
       }
-    } else {
-      console.warn("Pinecone index not available. Skipping Pinecone query.");
-      queryResponse = { matches: [] };
-    }
-
-    // Process the Pinecone query response (matches)
-    let context = "";
-    for (let match of queryResponse.matches) {
-      if (match.metadata.type === 'gpa') {
-        context += `Course: ${match.metadata.department} ${match.metadata.courseNumber}, `
-          + `Professor: ${match.metadata.professorNames}, `
-          + `Term: ${match.metadata.term}, `
-          + `Section: ${match.metadata.section}, `
-          + `GPA: ${match.metadata.gpa}, `
-          + `Class Size: ${match.metadata.classSize}\n\n`;
-      } else if (match.metadata.type === 'course') {
-        context += `Course: ${match.metadata.courseLetter} ${match.metadata.courseNumber}, `
-          + `Title: ${match.metadata.courseTitle}, `
-          + `Units: ${match.metadata.Units}, `
-          + `Description: ${match.metadata.courseDescription}, `
-          + `Faculty: ${match.metadata.facultyName}\n\n`;
-      }
-    }
-
-    // Generate a response based on the context and question
-    const chatCompletion = await client.chat.completions.create({
-      model: "ft:gpt-4o-mini-2024-07-18:personal::AHmNGvuH", // Your fine-tuned model
-      messages: [
-        {
-          role: "system",
-          content: "You are a knowledgeable and helpful course advisor assistant for BearPath."
-        },
-        {
-          role: "user",
-          content: `Based on the following course information:\n\n${context}\n\nUser question: ${question}\n\nPlease provide a helpful response:`
-        }
-      ],
     });
-
-    const answer = chatCompletion.choices[0]?.message?.content;
-    if (!answer) {
-      return res.status(500).json({ error: 'Failed to generate response from fine-tuned model' });
-    }
-
-    res.json({ answer });
   } catch (error) {
     console.error('Error processing query:', error);
     res.status(500).json({ error: `An error occurred while processing your query: ${error.message}` });
