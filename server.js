@@ -953,14 +953,9 @@ app.use((req, res) => {
   res.status(404).send('Not Found');
 });
 
-// Move server start into initPinecone to ensure Pinecone is initialized first
-async function startServer() {
-  await initPinecone();  // Ensures Pinecone is initialized before handling any request
-  const PORT = process.env.PORT || 8000;
-  app.listen(PORT, () => {
-    console.log(`Server is running on port ${PORT}`);
-  });
-}
-
-// Call startServer to initialize everything
-startServer();
+// Start the server
+const PORT = process.env.PORT || 8000;
+app.listen(PORT, () => {
+ 
+  console.log(`Server is running on port ${PORT}`);
+});
