@@ -1,5 +1,5 @@
 const { OpenAI } = require('openai');
-const { PineconeClient } = require('@pinecone-database/pinecone');
+const { Pinecone } = require('@pinecone-database/pinecone');
 const dotenv = require('dotenv');
 
 dotenv.config();
@@ -9,8 +9,8 @@ const pineconeApiKey = process.env.PINECONE_API_KEY;
 
 let pineconeIndex;
 
-const { Pinecone } = require('@pinecone-database/pinecone');
-const dotenv = require('dotenv');
+
+
 
 dotenv.config();
 
