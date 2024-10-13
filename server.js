@@ -111,7 +111,9 @@ app.post('/api/query', async (req, res) => {
         queryResponse = await pineconeIndex.query({
           vector: questionEmbedding,
           topK: 5,
+          namespace: "",
           includeMetadata: true
+       
         });
       } catch (error) {
         console.error("Error querying Pinecone:", error);
