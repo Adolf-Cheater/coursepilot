@@ -9,17 +9,25 @@ const pineconeApiKey = process.env.PINECONE_API_KEY;
 
 let pineconeIndex; // Declare this variable to hold the Pinecone index
 
-// Initialize Pinecone client
 async function initPinecone() {
-  const pinecone = new PineconeClient();
-  await pinecone.init({
-    apiKey: pineconeApiKey,
-    environment: "aped-4627-b74a"
-  });
-  console.log("Pinecone initialized successfully");
-  
-  pineconeIndex = pinecone.Index("bearpath");
-  console.log("Pinecone index accessed successfully");
+  try {
+    const pc = new Pinecone({
+      apiKey: process.env.PINECONE_API_KEY, // Load the API key from your environment variables
+      environment: "us-east-1" // The environment should match your Pinecone region
+    });
+
+    // Check if the index exists
+    pineconeIndex = pc.index('bearpath');  // Assuming 'bearpath' is your index name
+    console.log("Pinecone initialized successfully");
+
+    // Additional check to see if the index exists
+    const indexStats = await pineconeIndex.describeIndex();
+    console.log("Pinecone index exists and is accessible:", indexStats);
+
+  } catch (error) {
+    console.error("Error initializing Pinecone:", error);
+    pineconeIndex = null; // Handle the error and proceed without Pinecone
+  }
 }
 
 const express = require('express');
