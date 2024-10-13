@@ -23,8 +23,7 @@ async function initPinecone() {
       apiKey: pineconeApiKey,
       environment: "aped-4627-b74a"
     });
-    console.log("Pinecone initialized successfully");
-    
+    pinecone.projectName = 'default';  // Manually set project name if necessary
     pineconeIndex = pinecone.Index("bearpath");
     console.log("Pinecone index accessed successfully");
   } catch (error) {
