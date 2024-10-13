@@ -7,19 +7,42 @@ dotenv.config();
 const openaiApiKey = process.env.OPENAI_API_KEY;
 const pineconeApiKey = process.env.PINECONE_API_KEY;
 
-let pineconeIndex; // Declare this variable to hold the Pinecone index
+let pineconeIndex;
 
-// Initialize Pinecone client
-async function initPinecone() {
-  const pinecone = new PineconeClient();
-  await pinecone.init({
-    apiKey: pineconeApiKey,
-    environment: "aped-4627-b74a"
+initPinecone().then((index) => {
+  pineconeIndex = index;
+  const PORT = process.env.PORT || 8000;
+  app.listen(PORT, () => {
+    console.log(`Server is running on port ${PORT}`);
+    if (!pineconeIndex) {
+      console.warn("Warning: Pinecone initialization failed. Some features may not work correctly.");
+    }
   });
-  console.log("Pinecone initialized successfully");
-  
-  pineconeIndex = pinecone.Index("bearpath");
-  console.log("Pinecone index accessed successfully");
+}).catch(error => {
+  console.error("Failed to initialize Pinecone:", error);
+  const PORT = process.env.PORT || 8000;
+  app.listen(PORT, () => {
+    console.log(`Server is running on port ${PORT}`);
+    console.warn("Warning: Pinecone initialization failed. Some features may not work correctly.");
+  });
+});
+
+async function initPinecone() {
+  try {
+    const pinecone = new PineconeClient();
+    await pinecone.init({
+      apiKey: pineconeApiKey,
+      environment: "aped-4627-b74a"
+    });
+    console.log("Pinecone initialized successfully");
+    
+    const index = pinecone.Index("bearpath");
+    console.log("Pinecone index accessed successfully");
+    return index;
+  } catch (error) {
+    console.error("Error initializing Pinecone:", error);
+    return null;
+  }
 }
 
 const express = require('express');
@@ -102,15 +125,22 @@ app.post('/api/query', async (req, res) => {
 
     // Query Pinecone
     console.log("Querying Pinecone with the embedding...");
-    const queryResponse = await index.query({
-      vector: questionEmbedding,
-      topK: 5,
-      includeMetadata: true
-    });
-    console.log("Pinecone query response:", queryResponse);
-
-    if (!queryResponse.matches || queryResponse.matches.length === 0) {
-      console.error("No matches found from Pinecone query");
+    let queryResponse;
+    if (pineconeIndex) {
+      try {
+        queryResponse = await pineconeIndex.query({
+          vector: questionEmbedding,
+          topK: 5,
+          includeMetadata: true
+        });
+        console.log("Pinecone query response:", queryResponse);
+      } catch (error) {
+        console.error("Error querying Pinecone:", error);
+        queryResponse = { matches: [] };
+      }
+    } else {
+      console.warn("Pinecone index not available. Skipping Pinecone query.");
+      queryResponse = { matches: [] };
     }
 
     // Format context from Pinecone results
