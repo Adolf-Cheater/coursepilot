@@ -21,10 +21,12 @@ async function initPinecone() {
     const pinecone = new PineconeClient();
     await pinecone.init({
       apiKey: pineconeApiKey,
-      environment: "us-east-1"
+      environment: "us-east-1"  // or the correct environment if it's different
     });
-    pinecone.projectName = 'default';  // Manually set project name if necessary
-    pineconeIndex = pinecone.Index("bearpath");
+
+    // Directly set the index by using the exact host you already have from the Pinecone dashboard
+    pineconeIndex = pinecone.Index("bearpath", { host: "https://bearpath-rlipr2a.svc.aped-4627-b74a.pinecone.io" });
+    
     console.log("Pinecone index accessed successfully");
   } catch (error) {
     console.error("Error initializing Pinecone:", error);
