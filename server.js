@@ -1,9 +1,6 @@
-import { OpenAI } from 'openai';
-import { Pinecone } from 'pinecone-client';
-import dotenv from 'dotenv';
-
-dotenv.config();
-
+const { OpenAI } = require('openai');
+const { Pinecone } = require('pinecone-client');
+const dotenv = require('dotenv');
 const pc = new Pinecone();
 const index = pc.Index("bearpath");
 const openaiApiKey = process.env.OPENAI_API_KEY;
@@ -15,7 +12,7 @@ const cors = require('cors');
 const bodyParser = require('body-parser');
 
 const app = express();
-
+dotenv.config();
 // Use body-parser middleware to parse JSON bodies
 app.use(bodyParser.json());
 app.use(express.json());
