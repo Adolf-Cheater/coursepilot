@@ -4,12 +4,16 @@ const dotenv = require('dotenv');
 
 dotenv.config();
 console.log("PINECONE_API_KEY:", process.env.PINECONE_API_KEY ? "Set" : "Not set");
+console.log("PINECONE_ENVIRONMENT:", process.env.PINECONE_ENVIRONMENT);
 let pineconeIndex;
 // Initialize Pinecone client
 async function initPinecone() {
   try {
     console.log("Attempting to initialize Pinecone...");
-    const pinecone = new Pinecone();
+    const pinecone = new Pinecone({
+      environment: process.env.PINECONE_ENVIRONMENT,
+      apiKey: process.env.PINECONE_API_KEY,
+    });
 
     console.log("Pinecone client created, attempting to access index...");
     pineconeIndex = pinecone.Index('bearpath');
