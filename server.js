@@ -19,14 +19,18 @@ let pineconeIndex; // Declare this variable to hold the Pinecone index
 async function initPinecone() {
   try {
     const pinecone = new PineconeClient();
+
+    // Initialize with the Pinecone API key and correct environment
     await pinecone.init({
       apiKey: pineconeApiKey,
-      environment: "us-east-1"  // or the correct environment if it's different
+      environment: "us-east-1" // Ensure the correct environment
     });
 
-    // Directly set the index by using the exact host you already have from the Pinecone dashboard
-    pineconeIndex = pinecone.Index("bearpath", { host: "https://bearpath-rlipr2a.svc.aped-4627-b74a.pinecone.io" });
-    
+    // Manually set the index host to avoid fetching the project name
+    pineconeIndex = pinecone.Index("bearpath", {
+      host: "https://bearpath-rlipr2a.svc.aped-4627-b74a.pinecone.io"
+    });
+
     console.log("Pinecone index accessed successfully");
   } catch (error) {
     console.error("Error initializing Pinecone:", error);
