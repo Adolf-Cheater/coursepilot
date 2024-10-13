@@ -7,14 +7,16 @@ dotenv.config();
 const openaiApiKey = process.env.OPENAI_API_KEY;
 const pineconeApiKey = process.env.PINECONE_API_KEY;
 
-let pineconeIndex; // Declare this variable to hold the Pinecone index
+const { PineconeClient } = require('@pinecone-database/pinecone');
 
 async function initPinecone() {
   try {
-    const pc = new Pinecone({
-      apiKey: process.env.PINECONE_API_KEY
+    const client = new PineconeClient();
+    await client.init({
+      apiKey: process.env.PINECONE_API_KEY,
+      environment: 'your-environment'  // Ensure the environment is correct (e.g., 'us-west1-gcp')
     });
-    pineconeIndex = pc.index('bearpath');  // Assuming 'bearpath' is your index name
+    pineconeIndex = client.Index('bearpath');  // Assuming 'bearpath' is your index name
     console.log("Pinecone initialized successfully");
   } catch (error) {
     console.error("Error initializing Pinecone:", error);
@@ -1037,7 +1039,6 @@ app.use((req, res) => {
   res.status(404).send('Not Found');
 });
 
-// Initialize Pinecone and start the server
 initPinecone().then(() => {
   const PORT = process.env.PORT || 8000;
   app.listen(PORT, () => {
