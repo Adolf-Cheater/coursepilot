@@ -73,10 +73,10 @@ app.get('/health', (req, res) => {
 });
 
 app.post('/api/query', async (req, res) => {
-  console.log("POST /api/query called");
+  //console.log("POST /api/query called");
 
   const { question } = req.body;
-  console.log("Received request with body:", req.body);
+  //console.log("Received request with body:", req.body);
 
   if (!question) {
     console.log("No question provided in request body");
@@ -84,17 +84,17 @@ app.post('/api/query', async (req, res) => {
   }
 
   try {
-    console.log("Initializing OpenAI client...");
+    //console.log("Initializing OpenAI client...");
     const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-    console.log("OpenAI client initialized");
+   // console.log("OpenAI client initialized");
 
     // Get embedding for the question
-    console.log("Getting embedding for the question:", question);
+    //console.log("Getting embedding for the question:", question);
     const embeddingResponse = await client.embeddings.create({
       model: "text-embedding-ada-002",
       input: question,
     });
-    console.log("Received embedding response:", embeddingResponse.data);
+    //console.log("Received embedding response:", embeddingResponse.data);
 
     const questionEmbedding = embeddingResponse.data[0]?.embedding;
     if (!questionEmbedding) {
@@ -103,7 +103,7 @@ app.post('/api/query', async (req, res) => {
     }
 
     // Query Pinecone
-    console.log("Querying Pinecone with the embedding...");
+    //console.log("Querying Pinecone with the embedding...");
     let queryResponse;
     if (pineconeIndex) {
       try {
@@ -112,7 +112,7 @@ app.post('/api/query', async (req, res) => {
           topK: 5,
           includeMetadata: true
         });
-        console.log("Pinecone query response:", queryResponse);
+        //console.log("Pinecone query response:", queryResponse);
       } catch (error) {
         console.error("Error querying Pinecone:", error);
         queryResponse = { matches: [] };
@@ -142,16 +142,16 @@ app.post('/api/query', async (req, res) => {
       }
     }
 
-    console.log("Formatted context for query:", context);
+    //console.log("Formatted context for query:", context);
 
     // Query the fine-tuned model
-    console.log("Querying fine-tuned model with context and user question");
+    //console.log("Querying fine-tuned model with context and user question");
     const chatCompletion = await client.chat.completions.create({
       model: "ft:gpt-4o-mini-2024-07-18:personal::AHmNGvuH", // Your fine-tuned model
       messages: [
         {
           role: "system",
-          content: "You are a knowledgeable and helpful course advisor assistant for RateMyCourse. You provide information about courses, professors, and GPAs based on the data available."
+          content: "You are a knowledgeable and helpful course advisor assistant for BearPath. You provide information about courses, professors, and GPAs based on the data available. Avoid answering any questions that is not related to courses, professors or GPAs."
         },
         {
           role: "user",
@@ -166,7 +166,7 @@ app.post('/api/query', async (req, res) => {
       return res.status(500).json({ error: 'Failed to generate response from fine-tuned model' });
     }
 
-    console.log("Generated answer from model:", answer);
+    //console.log("Generated answer from model:", answer);
 
     res.json({ answer });
   } catch (error) {
