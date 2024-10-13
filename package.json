@@ -8,13 +8,13 @@
         "dev": "nodemon upload.js"
     },
     "dependencies": {
-        "body-parser": "^1.20.3",
+        "@pinecone-database/pinecone": "^1.1.2",
+        "openai": "^4.0.0",
+        "dotenv": "^10.0.0",
+        "express": "^4.17.1",
+        "pg": "^8.7.1",
         "cors": "^2.8.5",
-        "dotenv": "^16.4.5",
-        "express": "^4.21.1",
-        "openai": "^4.67.3",
-        "pg": "^8.13.0",
-        "@pinecone-database/pinecone": "^1.1.2"
+        "body-parser": "^1.19.0"
     },
     "devDependencies": {
         "nodemon": "^2.0.15"
