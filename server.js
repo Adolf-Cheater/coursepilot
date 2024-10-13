@@ -93,6 +93,8 @@ app.post('/api/query', async (req, res) => {
 
     // Query Pinecone
     let queryResponse;
+    console.log(queryResponse);
+    console.log(pineconeIndex);
     if (pineconeIndex) {
       try {
         queryResponse = await pineconeIndex.query({
