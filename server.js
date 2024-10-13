@@ -1,8 +1,16 @@
 const { OpenAI } = require('openai');
-const { Pinecone } = require('pinecone-client');
 const dotenv = require('dotenv');
-const pc = new Pinecone();
-const index = pc.Index("bearpath");
+const { PineconeClient } = require('@pinecone-database/pinecone');
+
+// Initialize Pinecone client
+const pinecone = new PineconeClient();
+pinecone.init({
+  apiKey: process.env.PINECONE_API_KEY,
+  environment: "aped-4627-b74a"  // This is extracted from your URL
+}).then(async () => {
+  const index = pinecone.Index("bearpath");
+  // Your code that uses the index should be here or called from here
+});
 const openaiApiKey = process.env.OPENAI_API_KEY;
 const pineconeApiKey = process.env.PINECONE_API_KEY;
 
