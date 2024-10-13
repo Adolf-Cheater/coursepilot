@@ -11,7 +11,8 @@ async function initPinecone() {
   try {
     const pc = new Pinecone({
       apiKey: process.env.PINECONE_API_KEY, // Load the API key from your environment variables
-      environment: process.env.PINECONE_ENVIRONMENT_KEY // Load the environment from your environment variables
+      environment: process.env.PINECONE_ENVIRONMENT_KEY, // Load the environment from your environment variables
+      host: "https://bearpath-rlipr2a.svc.aped-4627-b74a.pinecone.io"
     });
 
     pineconeIndex = pc.index('bearpath');  // Assuming 'bearpath' is your index name
