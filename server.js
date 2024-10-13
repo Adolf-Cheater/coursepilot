@@ -7,42 +7,19 @@ dotenv.config();
 const openaiApiKey = process.env.OPENAI_API_KEY;
 const pineconeApiKey = process.env.PINECONE_API_KEY;
 
-let pineconeIndex;
+let pineconeIndex; // Declare this variable to hold the Pinecone index
 
-initPinecone().then((index) => {
-  pineconeIndex = index;
-  const PORT = process.env.PORT || 8000;
-  app.listen(PORT, () => {
-    console.log(`Server is running on port ${PORT}`);
-    if (!pineconeIndex) {
-      console.warn("Warning: Pinecone initialization failed. Some features may not work correctly.");
-    }
-  });
-}).catch(error => {
-  console.error("Failed to initialize Pinecone:", error);
-  const PORT = process.env.PORT || 8000;
-  app.listen(PORT, () => {
-    console.log(`Server is running on port ${PORT}`);
-    console.warn("Warning: Pinecone initialization failed. Some features may not work correctly.");
-  });
-});
-
+// Initialize Pinecone client
 async function initPinecone() {
-  try {
-    const pinecone = new PineconeClient();
-    await pinecone.init({
-      apiKey: pineconeApiKey,
-      environment: "aped-4627-b74a"
-    });
-    console.log("Pinecone initialized successfully");
-    
-    const index = pinecone.Index("bearpath");
-    console.log("Pinecone index accessed successfully");
-    return index;
-  } catch (error) {
-    console.error("Error initializing Pinecone:", error);
-    return null;
-  }
+  const pinecone = new PineconeClient();
+  await pinecone.init({
+    apiKey: pineconeApiKey,
+    environment: "aped-4627-b74a"
+  });
+  console.log("Pinecone initialized successfully");
+  
+  pineconeIndex = pinecone.Index("bearpath");
+  console.log("Pinecone index accessed successfully");
 }
 
 const express = require('express');
@@ -94,37 +71,27 @@ app.get('/health', (req, res) => {
 });
 
 app.post('/api/query', async (req, res) => {
-  console.log("POST /api/query called");
-
   const { question } = req.body;
-  console.log("Received request with body:", req.body);
 
   if (!question) {
-    console.log("No question provided in request body");
     return res.status(400).json({ error: 'Question is required' });
   }
 
   try {
-    console.log("Initializing OpenAI client...");
     const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-    console.log("OpenAI client initialized");
 
     // Get embedding for the question
-    console.log("Getting embedding for the question:", question);
     const embeddingResponse = await client.embeddings.create({
       model: "text-embedding-ada-002",
       input: question,
     });
-    console.log("Received embedding response:", embeddingResponse.data);
 
     const questionEmbedding = embeddingResponse.data[0]?.embedding;
     if (!questionEmbedding) {
-      console.error("Error: No embedding returned from OpenAI");
       return res.status(500).json({ error: 'Failed to generate embedding from OpenAI' });
     }
 
     // Query Pinecone
-    console.log("Querying Pinecone with the embedding...");
     let queryResponse;
     if (pineconeIndex) {
       try {
@@ -133,20 +100,18 @@ app.post('/api/query', async (req, res) => {
           topK: 5,
           includeMetadata: true
         });
-        console.log("Pinecone query response:", queryResponse);
       } catch (error) {
         console.error("Error querying Pinecone:", error);
-        queryResponse = { matches: [] };
+        return res.status(500).json({ error: 'Error querying Pinecone' });
       }
     } else {
       console.warn("Pinecone index not available. Skipping Pinecone query.");
       queryResponse = { matches: [] };
     }
 
-    // Format context from Pinecone results
+    // Process the Pinecone query response (matches)
     let context = "";
     for (let match of queryResponse.matches) {
-      console.log("Processing match:", match.metadata);
       if (match.metadata.type === 'gpa') {
         context += `Course: ${match.metadata.department} ${match.metadata.courseNumber}, `
           + `Professor: ${match.metadata.professorNames}, `
@@ -163,16 +128,13 @@ app.post('/api/query', async (req, res) => {
       }
     }
 
-    console.log("Formatted context for query:", context);
-
-    // Query the fine-tuned model
-    console.log("Querying fine-tuned model with context and user question");
+    // Generate a response based on the context and question
     const chatCompletion = await client.chat.completions.create({
       model: "ft:gpt-4o-mini-2024-07-18:personal::AHmNGvuH", // Your fine-tuned model
       messages: [
         {
           role: "system",
-          content: "You are a knowledgeable and helpful course advisor assistant for RateMyCourse. You provide information about courses, professors, and GPAs based on the data available."
+          content: "You are a knowledgeable and helpful course advisor assistant for BearPath."
         },
         {
           role: "user",
@@ -183,11 +145,8 @@ app.post('/api/query', async (req, res) => {
 
     const answer = chatCompletion.choices[0]?.message?.content;
     if (!answer) {
-      console.error("No response received from fine-tuned model");
       return res.status(500).json({ error: 'Failed to generate response from fine-tuned model' });
     }
-
-    console.log("Generated answer from model:", answer);
 
     res.json({ answer });
   } catch (error) {
