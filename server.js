@@ -10,6 +10,13 @@ let pineconeIndex;
 async function initPinecone() {
   try {
     console.log("Attempting to initialize Pinecone...");
+    console.log("PINECONE_ENVIRONMENT:", process.env.PINECONE_ENVIRONMENT);
+    console.log("PINECONE_API_KEY:", process.env.PINECONE_API_KEY ? "Set" : "Not set");
+    
+    if (!process.env.PINECONE_ENVIRONMENT || !process.env.PINECONE_API_KEY) {
+      throw new Error("Pinecone environment variables are not set correctly");
+    }
+    
     const pinecone = new Pinecone({
       environment: process.env.PINECONE_ENVIRONMENT,
       apiKey: process.env.PINECONE_API_KEY,
