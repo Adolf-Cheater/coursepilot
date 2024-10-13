@@ -4,6 +4,7 @@ const { Pool } = require('pg');
 const cors = require('cors');
 const bodyParser = require('body-parser');
 const { exec } = require('child_process');
+const path = require('path');
 
 dotenv.config();
 
@@ -52,6 +53,7 @@ app.get('/health', (req, res) => {
   res.status(200).json({ status: 'OK', message: 'Server is running' });
 });
 
+// Route to query using Python script
 app.post('/api/query', async (req, res) => {
   const { question } = req.body;
 
@@ -60,8 +62,11 @@ app.post('/api/query', async (req, res) => {
   }
 
   try {
+    // Path to the Python script (ensure the correct path to llm_test.py)
+    const scriptPath = path.join(__dirname, 'llm_test.py'); 
+    
     // Run the Python script and pass the question as an argument
-    const command = `python3 llm_test.py "${question}"`;  // Adjust the path to your Python script
+    const command = `python3 ${scriptPath} "${question}"`;
 
     exec(command, (error, stdout, stderr) => {
       if (error) {
