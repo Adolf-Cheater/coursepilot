@@ -1,38 +1,25 @@
 const { OpenAI } = require('openai');
-const { Pinecone } = require('@pinecone-database/pinecone');
+const { PineconeClient } = require('@pinecone-database/pinecone');
 const dotenv = require('dotenv');
 
 dotenv.config();
-console.log("PINECONE_API_KEY:", process.env.PINECONE_API_KEY ? "Set" : "Not set");
-console.log("PINECONE_ENVIRONMENT:", process.env.PINECONE_ENVIRONMENT);
-let pineconeIndex;
+
+const openaiApiKey = process.env.OPENAI_API_KEY;
+const pineconeApiKey = process.env.PINECONE_API_KEY;
+
+let pineconeIndex; // Declare this variable to hold the Pinecone index
+
 // Initialize Pinecone client
 async function initPinecone() {
-  try {
-    console.log("Attempting to initialize Pinecone...");
-    console.log("PINECONE_ENVIRONMENT:", process.env.PINECONE_ENVIRONMENT);
-    console.log("PINECONE_API_KEY:", process.env.PINECONE_API_KEY ? "Set" : "Not set");
-    
-    if (!process.env.PINECONE_ENVIRONMENT || !process.env.PINECONE_API_KEY) {
-      throw new Error("Pinecone environment variables are not set correctly");
-    }
-    
-    const pinecone = new Pinecone({
-      environment: process.env.PINECONE_ENVIRONMENT,
-      apiKey: process.env.PINECONE_API_KEY,
-    });
-
-    console.log("Pinecone client created, attempting to access index...");
-    pineconeIndex = pinecone.Index('bearpath');
-    console.log("Pinecone index accessed successfully");
-
-    // Test the connection
-    const stats = await pineconeIndex.describeIndexStats();
-    console.log("Pinecone connection test successful. Index stats:", stats);
-  } catch (error) {
-    console.error("Error initializing Pinecone:", error);
-    pineconeIndex = null;
-  }
+  const pinecone = new PineconeClient();
+  await pinecone.init({
+    apiKey: pineconeApiKey,
+    environment: "aped-4627-b74a"
+  });
+  console.log("Pinecone initialized successfully");
+  
+  pineconeIndex = pinecone.Index("bearpath");
+  console.log("Pinecone index accessed successfully");
 }
 
 const express = require('express');
@@ -84,65 +71,78 @@ app.get('/health', (req, res) => {
 });
 
 app.post('/api/query', async (req, res) => {
+  console.log("POST /api/query called");
+
   const { question } = req.body;
+  console.log("Received request with body:", req.body);
 
   if (!question) {
+    console.log("No question provided in request body");
     return res.status(400).json({ error: 'Question is required' });
   }
 
   try {
+    console.log("Initializing OpenAI client...");
     const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+    console.log("OpenAI client initialized");
 
+    // Get embedding for the question
+    console.log("Getting embedding for the question:", question);
     const embeddingResponse = await client.embeddings.create({
       model: "text-embedding-ada-002",
       input: question,
     });
+    console.log("Received embedding response:", embeddingResponse.data);
 
     const questionEmbedding = embeddingResponse.data[0]?.embedding;
     if (!questionEmbedding) {
+      console.error("Error: No embedding returned from OpenAI");
       return res.status(500).json({ error: 'Failed to generate embedding from OpenAI' });
     }
 
-    let context = "";
-    if (pineconeIndex) {
-      try {
-        const queryResponse = await pineconeIndex.query({
-          vector: questionEmbedding,
-          topK: 5,
-          includeMetadata: true
-        });
-        
-        // Format context from Pinecone results
-        for (let match of queryResponse.matches) {
-          if (match.metadata.type === 'gpa') {
-            context += `Course: ${match.metadata.department} ${match.metadata.courseNumber}, `
-              + `Professor: ${match.metadata.professorNames}, `
-              + `Term: ${match.metadata.term}, `
-              + `Section: ${match.metadata.section}, `
-              + `GPA: ${match.metadata.gpa}, `
-              + `Class Size: ${match.metadata.classSize}\n\n`;
-          } else if (match.metadata.type === 'course') {
-            context += `Course: ${match.metadata.courseLetter} ${match.metadata.courseNumber}, `
-              + `Title: ${match.metadata.courseTitle}, `
-              + `Units: ${match.metadata.Units}, `
-              + `Description: ${match.metadata.courseDescription}, `
-              + `Faculty: ${match.metadata.facultyName}\n\n`;
-          }
-        }
-      } catch (error) {
-        console.error("Error querying Pinecone:", error);
-        context = "Unable to retrieve additional context due to a temporary issue.";
-      }
-    } else {
-      context = "Additional context is currently unavailable.";
+    // Query Pinecone
+    console.log("Querying Pinecone with the embedding...");
+    const queryResponse = await index.query({
+      vector: questionEmbedding,
+      topK: 5,
+      includeMetadata: true
+    });
+    console.log("Pinecone query response:", queryResponse);
+
+    if (!queryResponse.matches || queryResponse.matches.length === 0) {
+      console.error("No matches found from Pinecone query");
     }
 
+    // Format context from Pinecone results
+    let context = "";
+    for (let match of queryResponse.matches) {
+      console.log("Processing match:", match.metadata);
+      if (match.metadata.type === 'gpa') {
+        context += `Course: ${match.metadata.department} ${match.metadata.courseNumber}, `
+          + `Professor: ${match.metadata.professorNames}, `
+          + `Term: ${match.metadata.term}, `
+          + `Section: ${match.metadata.section}, `
+          + `GPA: ${match.metadata.gpa}, `
+          + `Class Size: ${match.metadata.classSize}\n\n`;
+      } else if (match.metadata.type === 'course') {
+        context += `Course: ${match.metadata.courseLetter} ${match.metadata.courseNumber}, `
+          + `Title: ${match.metadata.courseTitle}, `
+          + `Units: ${match.metadata.Units}, `
+          + `Description: ${match.metadata.courseDescription}, `
+          + `Faculty: ${match.metadata.facultyName}\n\n`;
+      }
+    }
+
+    console.log("Formatted context for query:", context);
+
+    // Query the fine-tuned model
+    console.log("Querying fine-tuned model with context and user question");
     const chatCompletion = await client.chat.completions.create({
-      model: "ft:gpt-4o-mini-2024-07-18:personal::AHmNGvuH",
+      model: "ft:gpt-4o-mini-2024-07-18:personal::AHmNGvuH", // Your fine-tuned model
       messages: [
         {
           role: "system",
-          content: "You are a knowledgeable and helpful course advisor assistant for BearPath. You provide information about courses, professors, and GPAs based on the data available. Avoid answering any questions that is not related to courses, professors or GPAs."
+          content: "You are a knowledgeable and helpful course advisor assistant for RateMyCourse. You provide information about courses, professors, and GPAs based on the data available."
         },
         {
           role: "user",
@@ -153,8 +153,11 @@ app.post('/api/query', async (req, res) => {
 
     const answer = chatCompletion.choices[0]?.message?.content;
     if (!answer) {
+      console.error("No response received from fine-tuned model");
       return res.status(500).json({ error: 'Failed to generate response from fine-tuned model' });
     }
+
+    console.log("Generated answer from model:", answer);
 
     res.json({ answer });
   } catch (error) {
@@ -1027,9 +1030,8 @@ app.use((req, res) => {
   res.status(404).send('Not Found');
 });
 
-initPinecone().then(() => {
-  const PORT = process.env.PORT || 8000;
-  app.listen(PORT, () => {
-    console.log(`Server is running on port ${PORT}`);
-  });
+// Start the server
+const PORT = process.env.PORT || 8000;
+app.listen(PORT, () => {
+  console.log(`Server is running on port ${PORT}`);
 });
