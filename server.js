@@ -61,7 +61,7 @@ app.post('/api/query', async (req, res) => {
 
   try {
     // Run the Python script and pass the question as an argument
-    const command = `python3 path_to_your_script.py "${question}"`;  // Adjust the path to your Python script
+    const command = `python3 llm_test.py "${question}"`;  // Adjust the path to your Python script
 
     exec(command, (error, stdout, stderr) => {
       if (error) {
