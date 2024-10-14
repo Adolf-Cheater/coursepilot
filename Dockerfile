@@ -1,5 +1,5 @@
 # Use the official Node.js image as the base image
-FROM node:16 as build
+FROM node:16 as node-build
 
 # Set the working directory in the container
 WORKDIR /usr/src/app
@@ -8,15 +8,23 @@ WORKDIR /usr/src/app
 COPY package*.json ./
 RUN npm install
 
-# Copy the entire application (Node.js + Python scripts)
+# Copy your Node.js application files
 COPY . .
 
-# Install Python and necessary Python dependencies
-RUN apt-get update && apt-get install -y python3 python3-pip && \
-    pip3 install -r requirements.txt
-
-# Expose the port the Node.js app runs on
+# Expose the port the app runs on
 EXPOSE 8000
 
 # Command to start the Node.js server
 CMD ["node", "server.js"]
+
+# Stage for Python (used for running Python scripts, not a server)
+FROM python:3.9-slim as python-build
+
+# Set the working directory
+WORKDIR /usr/src/app
+
+# Copy Python dependencies and install them
+COPY requirements.txt ./
+RUN pip install -r requirements.txt
+
+# No need to expose a port, only using Python for scripts
