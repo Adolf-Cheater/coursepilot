@@ -62,7 +62,7 @@ app.post('/api/query', async (req, res) => {
 
   try {
     // Path to the Python script (ensure the correct path)
-    const scriptPath = path.join(__dirname, 'your_python_script.py'); 
+    const scriptPath = path.join(__dirname, 'llm_test.py'); 
     
     // Run the Python script and pass the question as an argument
     const command = `python3 ${scriptPath} "${question}"`;
