@@ -47,9 +47,9 @@ def format_context(results):
 
 def query_fine_tuned_model(prompt):
     response = openai_client.chat.completions.create(
-        model="ft:gpt-4o-mini-2024-07-18:personal::AHmNGvuH",  # Your fine-tuned model
+        model="ft:gpt-4o-mini-2024-07-18:personal::AHmNGvuH",  
         messages=[
-            {"role": "system", "content": "You are a knowledgeable and helpful course advisor assistant for BearPath."},
+            {"role": "system", "content": "You are a knowledgeable and helpful course advisor assistant for BearPath. You are helping a student with their course-related, professor-related or gpa-related questions. Avoid answering any non course, professor, gpa related quetions or providing personal information or any information that could be used to identify a student"},
             {"role": "user", "content": prompt}
         ]
     )
@@ -75,7 +75,7 @@ def process_query(user_question):
 
 if __name__ == "__main__":
     # Take user question from command line argument
-    user_question = sys.argv[1] if len(sys.argv) > 1 else "What is the cmput 200 level course with the highest GPA?"
+    user_question = sys.argv[1] if len(sys.argv) > 1 else "Output straight away - 'Please enter the question again as some unexpected error occurred'"
 
     # Process the query
     answer = process_query(user_question)
