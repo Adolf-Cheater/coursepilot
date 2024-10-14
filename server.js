@@ -53,7 +53,6 @@ app.get('/health', (req, res) => {
   res.status(200).json({ status: 'OK', message: 'Server is running' });
 });
 
-// Route to query using Python script
 app.post('/api/query', async (req, res) => {
   const { question } = req.body;
 
@@ -62,8 +61,8 @@ app.post('/api/query', async (req, res) => {
   }
 
   try {
-    // Path to the Python script (ensure the correct path to llm_test.py)
-    const scriptPath = path.join(__dirname, 'llm_test.py'); 
+    // Path to the Python script (ensure the correct path)
+    const scriptPath = path.join(__dirname, 'your_python_script.py'); 
     
     // Run the Python script and pass the question as an argument
     const command = `python3 ${scriptPath} "${question}"`;
@@ -958,9 +957,7 @@ app.use((req, res) => {
   res.status(404).send('Not Found');
 });
 
-// Start the server
 const PORT = process.env.PORT || 8000;
-app.listen(PORT, () => {
- 
+app.listen(PORT, '0.0.0.0', () => {
   console.log(`Server is running on port ${PORT}`);
 });
