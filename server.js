@@ -18,7 +18,6 @@ app.use(express.json());
 app.use(cors());
 
 
-
 // Configure PostgreSQL connection
 const pool = new Pool({
   user: 'main',
@@ -951,9 +950,9 @@ app.get('/api/top-enrolled', async (req, res) => {
   }
 });
 
-// Add this to your server.js where other API endpoints are defined
-
 app.get('/api/random', async (req, res) => {
+  const client = await pool.connect();
+  
   try {
     // Randomly decide whether to return a course or professor (50/50 chance)
     const isRandomCourse = Math.random() < 0.5;
@@ -962,16 +961,18 @@ app.get('/api/random', async (req, res) => {
       // Get random course
       const courseQuery = `
         SELECT 
-          c.CourseCode as course_code,
-          c.CourseName as course_name,
+          c.course_code,
+          COALESCE(cdb.course_title, c.course_name) as course_name,
           'course' as type
         FROM courses c
-        ORDER BY RAND()
+        LEFT JOIN coursesdb cdb ON REPLACE(CONCAT(cdb.course_letter, cdb.course_number), ' ', '') = REPLACE(c.course_code, ' ', '')
+        ORDER BY RANDOM()
         LIMIT 1
       `;
-      const [course] = await queryPromise(dbRateMyCourse, courseQuery);
-      if (course) {
-        res.json(course);
+      
+      const courseResult = await client.query(courseQuery);
+      if (courseResult.rows.length > 0) {
+        res.json(courseResult.rows[0]);
       } else {
         throw new Error('No courses found');
       }
@@ -979,19 +980,20 @@ app.get('/api/random', async (req, res) => {
       // Get random professor
       const professorQuery = `
         SELECT 
-          i.FirstName as first_name,
-          i.LastName as last_name,
-          d.DepartmentName as department_name,
-          d.Faculty as faculty,
+          i.first_name,
+          i.last_name,
+          d.department_name,
+          d.faculty,
           'professor' as type
         FROM instructors i
-        JOIN departments d ON i.DepartmentID = d.DepartmentID
-        ORDER BY RAND()
+        JOIN departments d ON i.department_id = d.department_id
+        ORDER BY RANDOM()
         LIMIT 1
       `;
-      const [professor] = await queryPromise(dbRateMyCourse, professorQuery);
-      if (professor) {
-        res.json(professor);
+      
+      const professorResult = await client.query(professorQuery);
+      if (professorResult.rows.length > 0) {
+        res.json(professorResult.rows[0]);
       } else {
         throw new Error('No professors found');
       }
@@ -999,6 +1001,8 @@ app.get('/api/random', async (req, res) => {
   } catch (error) {
     console.error('Error fetching random item:', error);
     res.status(500).json({ error: 'Error fetching random item: ' + error.message });
+  } finally {
+    client.release();
   }
 });
 
