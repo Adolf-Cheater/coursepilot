@@ -951,6 +951,57 @@ app.get('/api/top-enrolled', async (req, res) => {
   }
 });
 
+// Add this to your server.js where other API endpoints are defined
+
+app.get('/api/random', async (req, res) => {
+  try {
+    // Randomly decide whether to return a course or professor (50/50 chance)
+    const isRandomCourse = Math.random() < 0.5;
+
+    if (isRandomCourse) {
+      // Get random course
+      const courseQuery = `
+        SELECT 
+          c.CourseCode as course_code,
+          c.CourseName as course_name,
+          'course' as type
+        FROM courses c
+        ORDER BY RAND()
+        LIMIT 1
+      `;
+      const [course] = await queryPromise(dbRateMyCourse, courseQuery);
+      if (course) {
+        res.json(course);
+      } else {
+        throw new Error('No courses found');
+      }
+    } else {
+      // Get random professor
+      const professorQuery = `
+        SELECT 
+          i.FirstName as first_name,
+          i.LastName as last_name,
+          d.DepartmentName as department_name,
+          d.Faculty as faculty,
+          'professor' as type
+        FROM instructors i
+        JOIN departments d ON i.DepartmentID = d.DepartmentID
+        ORDER BY RAND()
+        LIMIT 1
+      `;
+      const [professor] = await queryPromise(dbRateMyCourse, professorQuery);
+      if (professor) {
+        res.json(professor);
+      } else {
+        throw new Error('No professors found');
+      }
+    }
+  } catch (error) {
+    console.error('Error fetching random item:', error);
+    res.status(500).json({ error: 'Error fetching random item: ' + error.message });
+  }
+});
+
 
 app.use((req, res) => {
   console.log(`Unhandled request: ${req.method} ${req.path}`);
